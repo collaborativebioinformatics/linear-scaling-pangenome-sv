@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # run_pipeline.sh - Run the full chr21 smoke-test pipeline on DNAnexus.
-# Flow: environment -> HPRC manifest -> stage inputs -> interval map -> PGGB -> merge -> benchmark
+# Flow: environment -> HPRC manifest -> stage inputs -> interval map ->
+#       baseline PGGB -> chunk FASTAs -> DNAnexus parallel chunk PGGB ->
+#       merge -> benchmark -> web JSON
 set -euo pipefail
 
 UPLOAD="${1:-}"
@@ -38,10 +40,9 @@ bash scripts/prepare_reference.sh
 echo "[4/9] Mapping and preparing chr21 sequences"
 python3 pipeline/prepare/map_chromosome.py
 
-# GATE: verify mapping report has valid source_start/source_end for all 4
 echo "  Validating mapping report..."
 MAPPING="results/preparation/sequence_mapping.tsv"
-if [ ! -f "$MAPPING" ]; then echo "FATAL: no mapping report"; exit 1; fi
+[ ! -f "$MAPPING" ] && { echo "FATAL: no mapping report"; exit 1; }
 python3 -c "
 import csv
 rows = list(csv.DictReader(open('$MAPPING'), delimiter='\\t'))
@@ -60,7 +61,6 @@ NP=$(grep -c '^>' "$INPUT_FASTA")
 [ "$NP" -ne 5 ] && { echo "FATAL: expected 5 paths, got $NP"; exit 1; }
 echo "  $NP paths verified"
 
-# Verify reference interval is ~1 Mb, not ~47 Mb
 REF_LEN=$(python3 -c "
 s = []
 with open('$INPUT_FASTA') as f:
@@ -84,7 +84,9 @@ BASELINE_GFA="results/baseline/baseline.gfa"
 echo "[6/9] Chunks"
 python3 pipeline/parallel/make_chunks.py
 python3 pipeline/parallel/build_all_chunks.py
-python3 pipeline/parallel/build_all_chunks.py --execute 2>/dev/null || true
+
+echo "[6b/9] Launching parallel chunk PGGB on DNAnexus"
+bash dnanexus/run_parallel_chunks.sh
 
 echo "[7/9] Merge"
 python3 pipeline/merge/merge_graphs.py

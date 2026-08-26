@@ -87,8 +87,8 @@ def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000):
         br.append({
             "boundary": f"{a}--{b}", "left_chunk": a, "right_chunk": b,
             "reference_overlap_bp": overlap_bp, "anchor_found": False,
-            "haplotypes_preserved": True, "status": "PASS",
-            "message": "Disjoint union (overlap-aware pending PGGB output)",
+            "haplotypes_preserved": True, "status": "NOT_IMPLEMENTED",
+            "message": "Overlap-aware stitching not yet implemented. Current: disjoint union.",
         })
     return merged, br
 

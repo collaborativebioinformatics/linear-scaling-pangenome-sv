@@ -12,7 +12,7 @@ set -euo pipefail
 
 INPUT="${1:-results/preparation/chr21_multi.fa}"
 OUTDIR="${2:-results/baseline}"
-THREADS="${3:-16}"
+THREADS="${3:-$(python3 -c "import yaml; print(yaml.safe_load(open('config/pipeline.yaml'))['pggb']['threads']" 2>/dev/null || nproc)}"
 REF="${4:-GRCh38}"
 PGGB_IMAGE="${PGGB_IMAGE:-ghcr.io/pangenome/pggb:latest}"
 

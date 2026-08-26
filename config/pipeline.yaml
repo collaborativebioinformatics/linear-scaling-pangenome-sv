@@ -28,7 +28,7 @@ parallel:
   max_local_workers: 4
 
 pggb:
-  threads: 16
+  threads: 8               # Default threads for PGGB (use config or nproc)
   minimum_identity: 90
   segment_length: 5000
 
