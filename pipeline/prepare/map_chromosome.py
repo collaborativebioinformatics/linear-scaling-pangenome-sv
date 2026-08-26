@@ -86,12 +86,14 @@ def main():
     failed = []
     for s in samples:
         sm = s.get("sample_id", "?")
-        hap = s.get("haplotype", "?")
+        numeric_hap = s.get("haplotype", "?")
+        hap_label = s.get("haplotype_label", "?")
         name = s.get("assembly_name", "?")
-        print(f"  {sm} ({hap}): {name}")
+        print(f"  {sm} haplotype={numeric_hap} ({hap_label}): {name}")
+
         ap = None
         for d in ["work/downloads", "/data/hprc"]:
-            for ext in ["", ".fa", ".fasta", ".fna", ".fa.gz"]:
+            for ext in [".fa.gz", ".fa", ".fasta", ".fna"]:
                 p = os.path.join(d, name + ext)
                 if os.path.exists(p):
                     ap = p; break
@@ -99,23 +101,29 @@ def main():
                 break
         if not ap:
             print(f"    NOT FOUND — assembly file missing")
-            failed.append(f"{sm} ({hap}): file not found")
+            failed.append(f"{sm} ({hap_label}): file {name} not found")
             continue
+
         cands = scan_contig_names(ap)
         if cands:
             b = cands[0]
             print(f"    -> chr21: {b['contig']} ({b['method']})")
-            rows.append({"sample": sm, "haplotype": hap,
+            rows.append({"sample": sm, "haplotype": numeric_hap,
+                         "haplotype_label": hap_label,
+                         "assembly_name": name,
                          "reference_chromosome": chrom,
                          "source_contig": b["contig"], "strand": b["strand"],
                          "mapping_method": b["method"],
                          "confidence": b["confidence"],
                          "status": "mapped"})
             continue
+
         mm = map_via_minimap2(ap, "work/reference/GRCh38_chr21.fa")
         if mm:
             print(f"    -> chr21: {mm['contig']} ({mm['method']})")
-            rows.append({"sample": sm, "haplotype": hap,
+            rows.append({"sample": sm, "haplotype": numeric_hap,
+                         "haplotype_label": hap_label,
+                         "assembly_name": name,
                          "reference_chromosome": chrom,
                          "source_contig": mm["contig"], "strand": mm["strand"],
                          "mapping_method": mm["method"],
@@ -123,15 +131,15 @@ def main():
                          "status": "mapped"})
         else:
             print(f"    FAILED — cannot determine chr21 contig")
-            failed.append(f"{sm} ({hap}): chr21 mapping unresolved")
+            failed.append(f"{sm} ({hap_label}): chr21 mapping unresolved")
 
     # Write mapping report
     mo = "results/preparation/sequence_mapping.tsv"
     with open(mo, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=[
-            "sample", "haplotype", "reference_chromosome",
-            "source_contig", "strand", "mapping_method",
-            "confidence", "status"], delimiter="\t")
+            "sample", "haplotype", "haplotype_label", "assembly_name",
+            "reference_chromosome", "source_contig", "strand",
+            "mapping_method", "confidence", "status"], delimiter="\t")
         w.writeheader()
         w.writerows(rows)
     print(f"\n{mo}: {len(rows)} records written")
@@ -143,8 +151,6 @@ def main():
         for f in failed:
             print(f"  {f}", file=sys.stderr)
         print("\nPipeline cannot proceed without valid chr21 mapping for all 4 haplotypes.",
-              file=sys.stderr)
-        print("Check that assemblies are complete and contain chr21 contigs.",
               file=sys.stderr)
         sys.exit(1)
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-fetch_hprc_index.py — Select HG00673/HG00733 assemblies from the official
-HPRC Release 2 index and write a compact manifest with exact S3 URIs.
+fetch_hprc_index.py — Select the 4 requested HPRC assemblies by exact
+assembly_name from the official Release 2 index, and write a compact
+manifest with the numeric haplotype column preserved.
 
-The official index lives at:
-  https://raw.githubusercontent.com/human-pangenomics/hprc_intermediate_assembly/
-  refs/heads/main/data_tables/assemblies_release2_v1.0.index.csv
+The official index uses NUMERIC haplotype values (1, 2).
+Do NOT key on "maternal"/"paternal" strings — the official CSV does not
+use them.  Derive human-readable labels from the assembly_name pattern.
 
 Official columns: sample_id, haplotype, phasing, assembly_method,
 assembly_method_version, assembly_date, assembly_name, source,
@@ -16,7 +17,6 @@ Usage:
     # Writes work/manifests/hprc_selected.csv
     # Exits non-zero if any of the 4 requested assemblies are missing.
 """
-
 import csv
 import os
 import sys
@@ -28,13 +28,23 @@ HPRC_INDEX_URL = (
     "assemblies_release2_v1.0.index.csv"
 )
 
-# The 4 requested assemblies: sample + haplotype
-REQUESTED = [
-    ("HG00673", "maternal"),
-    ("HG00673", "paternal"),
-    ("HG00733", "maternal"),
-    ("HG00733", "paternal"),
+# Canonical assembly names from config/samples.yaml.
+# These are the exact strings in the official "assembly_name" column.
+REQUESTED_ASSEMBLY_NAMES = [
+    "HG00673_mat_hprc_r2_v1.0.1",
+    "HG00673_pat_hprc_r2_v1.0.1",
+    "HG00733_mat_hprc_r2_v1.0.1",
+    "HG00733_pat_hprc_r2_v1.0.1",
 ]
+
+
+def _haplotype_label(assembly_name: str) -> str:
+    """Derive human-readable label from the canonical assembly name."""
+    if "_mat_" in assembly_name:
+        return "maternal"
+    if "_pat_" in assembly_name:
+        return "paternal"
+    return "unknown"
 
 
 def fetch_index(url: str) -> list[dict]:
@@ -57,54 +67,79 @@ def fetch_index(url: str) -> list[dict]:
 def main():
     rows = fetch_index(HPRC_INDEX_URL)
 
-    # Build lookup keyed by (sample_id, haplotype)
-    lookup: dict[tuple[str, str], dict] = {}
+    # Build a lookup keyed by assembly_name (exact match).
+    # The official "assembly_name" column contains strings like
+    # "HG00673_mat_hprc_r2_v1.0.1".
+    lookup: dict[str, dict] = {}
     for r in rows:
-        sid = r.get("sample_id", "").strip()
-        hap = r.get("haplotype", "").strip()
-        if sid and hap:
-            lookup[(sid, hap)] = r
+        aname = r.get("assembly_name", "").strip()
+        if aname:
+            if aname in lookup:
+                print(f"FATAL: Duplicate assembly_name in index: {aname}",
+                      file=sys.stderr)
+                sys.exit(1)
+            lookup[aname] = r
 
-    # Select the 4 we need
+    # Select the 4 we need by exact assembly_name match.
     selected: list[dict] = []
-    missing: list[tuple[str, str]] = []
-    for sample, haplotype in REQUESTED:
-        r = lookup.get((sample, haplotype))
+    missing: list[str] = []
+    for aname in REQUESTED_ASSEMBLY_NAMES:
+        r = lookup.get(aname)
         if r is None:
-            missing.append((sample, haplotype))
+            missing.append(aname)
         else:
             selected.append(r)
 
-    # Fail hard if any assembly is missing — no silent empty manifest
+    # Fail hard if any assembly is missing.
     if missing:
         print("FATAL: The following requested assemblies were NOT found "
               "in the official HPRC Release 2 index:", file=sys.stderr)
-        for s, h in missing:
-            print(f"  {s} ({h})", file=sys.stderr)
+        for a in missing:
+            print(f"  {a}", file=sys.stderr)
         print(f"\nIndex URL: {HPRC_INDEX_URL}", file=sys.stderr)
         sys.exit(1)
 
-    # Write compact manifest
+    # Fail on duplicates.
+    if len(selected) != len(REQUESTED_ASSEMBLY_NAMES):
+        print(f"FATAL: Expected {len(REQUESTED_ASSEMBLY_NAMES)} records, "
+              f"got {len(selected)}. Possible duplicate.", file=sys.stderr)
+        sys.exit(1)
+
+    # Write compact manifest with both numeric haplotype and human-readable label.
     os.makedirs("work/manifests", exist_ok=True)
     out_path = "work/manifests/hprc_selected.csv"
 
     fieldnames = [
-        "sample_id", "haplotype", "assembly_name", "assembly_md5",
-        "assembly_fai", "assembly_gzi", "assembly",
+        "sample_id", "haplotype", "haplotype_label", "assembly_name",
+        "assembly_md5", "assembly_fai", "assembly_gzi", "assembly",
     ]
     with open(out_path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         for r in selected:
-            w.writerow({k: r.get(k, "") for k in fieldnames})
+            aname = r.get("assembly_name", "")
+            row_out = {
+                "sample_id": r.get("sample_id", ""),
+                "haplotype": r.get("haplotype", ""),
+                "haplotype_label": _haplotype_label(aname),
+                "assembly_name": aname,
+                "assembly_md5": r.get("assembly_md5", ""),
+                "assembly_fai": r.get("assembly_fai", ""),
+                "assembly_gzi": r.get("assembly_gzi", ""),
+                "assembly": r.get("assembly", ""),
+            }
+            w.writerow(row_out)
 
-    print(f"\nSelected {len(selected)}/{len(REQUESTED)} assemblies — all found.")
+    print(f"\nSelected {len(selected)}/{len(REQUESTED_ASSEMBLY_NAMES)} assemblies — all found.")
     print(f"Manifest: {out_path}")
     for r in selected:
-        print(f"  {r['sample_id']} ({r['haplotype']}): {r['assembly_name']}")
+        aname = r.get("assembly_name", "")
+        label = _haplotype_label(aname)
+        sample = r.get("sample_id", "")
+        numeric_hap = r.get("haplotype", "")
+        print(f"  {sample} haplotype={numeric_hap} ({label}): {aname}")
         print(f"    S3: {r.get('assembly', 'N/A')}")
 
-    # Also emit a human-readable summary
     print("\nNext step:")
     print("  python3 scripts/download_hprc.py")
 

@@ -1,8 +1,10 @@
 """
 prepare_sequences.py — Build chr21 multi-FASTA for PGGB.
 
-NO naive coordinate slicing. Uses map_chromosome.py to identify correct
-chr21 contigs, extracts them fully. Uses gzip.open for compressed assemblies.
+NO naive coordinate slicing. Uses map_chromosome.py results to identify
+correct chr21 contigs, extracts them fully. Uses gzip.open for compressed
+assemblies. Uses assembly_name from the mapping report to find files
+(does NOT construct file names from sample+haplotype strings).
 
 Requires exactly 5 paths (GRCh38 + 4 HPRC haplotypes). Fails otherwise.
 """
@@ -59,16 +61,17 @@ def main():
         print(f"  [1/5] GRCh38#0#chr21 (reference)")
 
         for row in mapping:
-            sm, hap = row["sample"], row["haplotype"]
-            tag = "mat" if hap == "maternal" else "pat"
-            name_key = f"{sm}_{tag}_hprc_r2_v1.0.1"
+            sm = row["sample"]
+            numeric_hap = row["haplotype"]
+            hap_label = row["haplotype_label"]
+            name = row["assembly_name"]
             contig_name = row["source_contig"].split()[0]
 
-            # Find assembly file (.fa.gz preferred, then .fa)
+            # Find assembly file by assembly_name from the mapping report
             ap = None
             for d in ["work/downloads", "/data/hprc"]:
                 for ext in [".fa.gz", ".fa", ".fasta", ".fna"]:
-                    p = os.path.join(d, name_key + ext)
+                    p = os.path.join(d, name + ext)
                     if os.path.exists(p):
                         ap = p
                         break
@@ -76,13 +79,13 @@ def main():
                     break
 
             if not ap:
-                print(f"  FATAL: Assembly file for {sm} ({hap}) not found "
-                      f"at any expected path.", file=sys.stderr)
+                print(f"  FATAL: Assembly file for {sm} ({hap_label}) "
+                      f"not found: {name}", file=sys.stderr)
                 sys.exit(1)
 
             # Extract the chr21 contig by matching header from mapping
-            seq_path = f"work/preparation/{sm}_{hap}_chr21.fa"
-            found = False
+            # Use numeric haplotype for PanSN path name (standard convention)
+            seq_path = f"work/preparation/{sm}_{hap_label}_chr21.fa"
             with _open_read(ap) as fin, open(seq_path, "w") as fout:
                 mode = False
                 for line in fin:
@@ -91,7 +94,7 @@ def main():
                         if (h == contig_name or h.endswith("chr21")
                                 or "#chr21" in h):
                             mode = True
-                            fout.write(f">{sm}#{hap}#{chrom}\n")
+                            fout.write(f">{sm}#{numeric_hap}#{chrom}\n")
                         else:
                             mode = False
                     elif mode:
@@ -105,11 +108,11 @@ def main():
                         out.write(line)
                 path_count += 1
                 sz = os.path.getsize(seq_path) / 1e6
-                print(f"  [{path_count}/5] {sm}#{hap}#{chrom} ({sz:.1f} MB)")
+                print(f"  [{path_count}/5] {sm}#{numeric_hap}#{chrom} "
+                      f"({hap_label}, {sz:.1f} MB)")
             else:
-                print(f"  FATAL: chr21 contig not found in {sm} ({hap}) "
-                      f"assembly {name_key}. Cannot extract chr21 sequence.",
-                      file=sys.stderr)
+                print(f"  FATAL: chr21 contig not found in {sm} ({hap_label}) "
+                      f"assembly {name}.", file=sys.stderr)
                 print(f"  Checked contig name: {contig_name}", file=sys.stderr)
                 print(f"  Assembly file: {ap}", file=sys.stderr)
                 sys.exit(1)
