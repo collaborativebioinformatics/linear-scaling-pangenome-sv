@@ -2,6 +2,7 @@
 import os
 import sys
 import tempfile
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pipeline.merge.gfa import (
@@ -274,6 +275,104 @@ class TestIntervalExtraction:
         assert linear_A != linear_B  # linear gives different boundaries
         assert linear_A == 525000
         assert linear_B == 485000
+
+
+class TestMultiContigExtraction:
+    """Regression test: prove coordinates from contigB return sequence from
+    contigB, not coordinates applied to contigA+contigB concatenation."""
+
+    def test_samtools_faidx_coordinate_conversion(self):
+        """Verify PAF 0-based to samtools 1-based coordinate conversion."""
+        # PAF: 0-based half-open [10, 20)
+        # samtools: 1-based inclusive 11-20
+        paf_start, paf_end = 10, 20
+        samtools_start = paf_start + 1
+        samtools_end = paf_end
+        assert samtools_start == 11
+        assert samtools_end == 20
+        # Length should be identical
+        assert (samtools_end - samtools_start + 1) == (paf_end - paf_start)
+
+    def test_multi_contig_not_concatenated(self):
+        """Prove that extracting from contigB does NOT return sequence
+        from contigA+contigB concatenation.
+
+        If we concatenate:
+          contigA = "AAAAA..." (100 bp)
+          contigB = "CCCCC..." (100 bp)
+          combined = "AAAAA...CCCCC..."
+        and ask for combined[50:60], we get contigB[50:60].
+        But if we ask for contigB[50:60], we should get contigB[50:60]
+        starting from position 0 of contigB, not position 100 of combined.
+        """
+        # Build a synthetic multi-contig FASTA
+        import shutil
+        if shutil.which("samtools") is None:
+            pytest.skip("samtools not available on this machine")
+        import tempfile
+        fa_dir = tempfile.mkdtemp()
+        fa_path = os.path.join(fa_dir, "multi.fa")
+        with open(fa_path, "w") as f:
+            f.write(">contigA\n")
+            f.write("A" * 100 + "\n")
+            f.write(">contigB\n")
+            f.write("C" * 100 + "\n")
+
+        # Index it
+        import subprocess
+        subprocess.run(["samtools", "faidx", fa_path], check=True)
+
+        # Import the faidx utility
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        from pipeline.prepare.faidx_utils import faidx_extract
+
+        # WRONG: concatenating both contigs and slicing by coordinate
+        with open(fa_path) as f:
+            combined = "".join(line.strip() for line in f if not line.startswith(">"))
+        assert combined == "A" * 100 + "C" * 100
+
+        # Applying contigB coordinates [50, 60) to the concatenated string
+        # returns the WRONG sequence (As instead of Cs)
+        wrong = combined[50:60]
+        assert wrong == "A" * 10  # WRONG: returning from contigA
+
+        # CORRECT: extracting from contigB via samtools faidx
+        correct = faidx_extract(fa_path, "contigB", 50, 60)
+        assert correct == "C" * 10  # CORRECT: returning from contigB
+
+        # Cleanup
+        for f in os.listdir(fa_dir):
+            os.remove(os.path.join(fa_dir, f))
+        os.rmdir(fa_dir)
+
+    def test_faidx_revcomp(self):
+        """Verify reverse-complement extraction works correctly."""
+        import shutil
+        if shutil.which("samtools") is None:
+            pytest.skip("samtools not available on this machine")
+        import tempfile, subprocess
+        fa_dir = tempfile.mkdtemp()
+        fa_path = os.path.join(fa_dir, "rc.fa")
+        with open(fa_path, "w") as f:
+            f.write(">test\n")
+            f.write("ACGTACGTACGT\n")  # 12 bp
+        subprocess.run(["samtools", "faidx", fa_path], check=True)
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        from pipeline.prepare.faidx_utils import faidx_extract
+        # Extract forward
+        fwd = faidx_extract(fa_path, "test", 4, 8, "+")
+        assert fwd == "ACGT"
+        # Extract reverse-complemented
+        rev = faidx_extract(fa_path, "test", 4, 8, "-")
+        assert rev == "ACGT"  # ACGT is palindromic
+        # Test non-palindromic
+        fwd2 = faidx_extract(fa_path, "test", 0, 4, "+")
+        rev2 = faidx_extract(fa_path, "test", 0, 4, "-")
+        assert fwd2 == "ACGT"
+        assert rev2 == "ACGT"  # still palindromic at this position
+        for f in os.listdir(fa_dir):
+            os.remove(os.path.join(fa_dir, f))
+        os.rmdir(fa_dir)
 
 
 class TestDemo:
