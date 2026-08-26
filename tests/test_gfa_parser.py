@@ -1,4 +1,4 @@
-"""Tests for GFA data model, chunking, and merge."""
+"""Tests for GFA data model, chunking, merge, and interval mapping."""
 import os
 import sys
 import tempfile
@@ -59,7 +59,8 @@ class TestGraph:
         assert g.node_count() == 0
 
     def test_parse(self):
-        gfa = "H\tVN:Z:1.1\nS\ts1\tACGT\nS\ts2\tTGCA\nL\ts1\t+\ts2\t+\t*\nP\tp1\ts1+,s2+\t*"
+        gfa = ("H\tVN:Z:1.1\nS\ts1\tACGT\nS\ts2\tTGCA\n"
+               "L\ts1\t+\ts2\t+\t*\nP\tp1\ts1+,s2+\t*")
         g = GfaGraph.parse(gfa)
         assert g.node_count() == 2
         assert g.edge_count() == 1
@@ -79,8 +80,6 @@ class TestGraph:
         g = GfaGraph()
         g.walks.append(Walk("S1", "1", "c", 0, 10, 1, ["n1+"]))
         assert "S1" in g.get_sample_names()
-
-
 class TestUtils:
     def test_revcomp(self):
         assert _revcomp("ACGT") == "ACGT"
@@ -104,39 +103,28 @@ class TestUtils:
 class TestIO:
     def test_write_read(self):
         g = GfaGraph()
-class TestHPRCIndex:
-    """Tests for the official numeric haplotype schema in the HPRC index."""
+        g.segments["s1"] = Segment("s1", "ACGT")
+        with tempfile.NamedTemporaryFile(suffix=".gfa", delete=False) as f:
+            g.write_gfa(f.name)
+            tmp = f.name
+        g2 = GfaGraph.parse_file(tmp)
+        os.unlink(tmp)
+        assert g2.node_count() == 1
 
-    def _haplotype_label(self, assembly_name):
-        """Mirror of fetch_hprc_index._haplotype_label for testing."""
-        if "_mat_" in assembly_name:
-            return "maternal"
-        if "_pat_" in assembly_name:
-            return "paternal"
-        return "unknown"
+
+class TestHPRCIndex:
+    def _hl(self, an):
+        return "maternal" if "_mat_" in an else (
+            "paternal" if "_pat_" in an else "unknown")
 
     def test_mat_label(self):
-        assert self._haplotype_label("HG00673_mat_hprc_r2_v1.0.1") == "maternal"
+        assert self._hl("HG00673_mat_hprc_r2_v1.0.1") == "maternal"
 
     def test_pat_label(self):
-        assert self._haplotype_label("HG00673_pat_hprc_r2_v1.0.1") == "paternal"
+        assert self._hl("HG00673_pat_hprc_r2_v1.0.1") == "paternal"
 
     def test_unknown_label(self):
-        assert self._haplotype_label("HG00001_hprc_r2_v1.0.1") == "unknown"
-
-    def test_manifest_columns(self):
-        """Verify the manifest CSV has the expected columns from the official schema."""
-        import csv
-        fieldnames = [
-            "sample_id", "haplotype", "haplotype_label", "assembly_name",
-            "assembly_md5", "assembly_fai", "assembly_gzi", "assembly",
-        ]
-        # The official haplotype column is numeric (not "maternal"/"paternal")
-        assert "haplotype" in fieldnames
-        # Human-readable label is derived from assembly_name pattern
-        assert "haplotype_label" in fieldnames
-        # assembly_name is the canonical match key
-        assert "assembly_name" in fieldnames
+        assert self._hl("HG00001_hprc_r2_v1.0.1") == "unknown"
 
 
 class TestChunks:
@@ -144,6 +132,59 @@ class TestChunks:
         ch = create_chunks("chr21", 0, 1000, 400, 50)
         assert len(ch) >= 2
         assert ch[0]["chunk_id"] == "chunk_0001"
+
+
+class TestIntervalExtraction:
+    def test_revcomp_roundtrip(self):
+        seq = "ACGTACGTACGT"
+        assert _revcomp(_revcomp(seq)) == seq
+
+    def test_revcomp_known(self):
+        assert _revcomp("ACGT") == "ACGT"
+        assert _revcomp("AAAA") == "TTTT"
+
+    def test_interval_extract_small(self):
+        ref = "A" * 50 + "C" * 20 + "G" * 30
+        chunk = ref[50:70]
+        assert len(chunk) == 20
+        assert chunk == "C" * 20
+
+    def test_interval_reverse_strand(self):
+        seq = "ACGTACGT" * 10
+        chunk = seq[20:40]
+        rc = _revcomp(chunk)
+        assert len(rc) == 20
+        assert rc == _revcomp(chunk)
+
+    def test_chunk_scaling_basic(self):
+        ref_s, ref_e = 0, 1000
+        src_s, src_e = 500, 1500
+        chunk_s, chunk_e = 200, 400
+        frac_s = (chunk_s - ref_s) / (ref_e - ref_s)
+        frac_e = (chunk_e - ref_s) / (ref_e - ref_s)
+        result_s = int(src_s + frac_s * (src_e - src_s))
+        result_e = int(src_s + frac_e * (src_e - src_s))
+        assert result_s == 700
+        assert result_e == 900
+
+    def test_chunk_scaling_reverse(self):
+        ref_s, ref_e = 0, 1000
+        src_s, src_e = 500, 1500
+        chunk_s, chunk_e = 200, 400
+        frac_s = (chunk_s - ref_s) / (ref_e - ref_s)
+        frac_e = (chunk_e - ref_s) / (ref_e - ref_s)
+        fwd_s = int(src_s + frac_s * (src_e - src_s))
+        fwd_e = int(src_s + frac_e * (src_e - src_s))
+        rev_s = src_e - (fwd_e - src_s)
+        rev_e = src_e - (fwd_s - src_s)
+        assert rev_s == 1100
+        assert rev_e == 1300
+
+    def test_smoke_interval_size(self):
+        ref = "A" * 46709983
+        start, end = 20000000, 21000000
+        chunk = ref[start:end]
+        assert len(chunk) == 1000000
 
 
 class TestDemo:

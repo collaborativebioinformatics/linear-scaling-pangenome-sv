@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# run_pipeline.sh — Run the full chr21 smoke-test pipeline on DNAnexus.
-# Flow: environment -> HPRC manifest -> stage DNAnexus inputs -> download missing
-#       -> persist -> map chr21 -> PGGB -> merge -> benchmark
+# run_pipeline.sh - Run the full chr21 smoke-test pipeline on DNAnexus.
+# Flow: environment -> HPRC manifest -> stage inputs -> interval map -> PGGB -> merge -> benchmark
 set -euo pipefail
 
 UPLOAD="${1:-}"
-echo "Pipeline starting (target: chr21:20000000-21000000)"
-
+echo "Pipeline starting (target: chr21:20000000-21000000, 0-based half-open)"
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_DIR="results/logs"; mkdir -p "$LOG_DIR"
@@ -37,8 +35,23 @@ fi
 echo "[3c/9] Preparing reference"
 bash scripts/prepare_reference.sh
 
-echo "[4/9] Preparing chr21 sequences"
+echo "[4/9] Mapping and preparing chr21 sequences"
 python3 pipeline/prepare/map_chromosome.py
+
+# GATE: verify mapping report has valid source_start/source_end for all 4
+echo "  Validating mapping report..."
+MAPPING="results/preparation/sequence_mapping.tsv"
+if [ ! -f "$MAPPING" ]; then echo "FATAL: no mapping report"; exit 1; fi
+python3 -c "
+import csv
+rows = list(csv.DictReader(open('$MAPPING'), delimiter='\\t'))
+mapped = [r for r in rows if r.get('status') == 'mapped' and r.get('source_start') and r.get('source_end')]
+if len(mapped) != 4:
+    print(f'FATAL: Expected 4 mapped with source coords, got {len(mapped)}')
+    exit(1)
+print('  All 4 haplotypes have valid source coordinates. Proceeding.')
+"
+
 python3 pipeline/prepare/prepare_sequences.py
 
 INPUT_FASTA="results/preparation/chr21_multi.fa"
@@ -46,6 +59,22 @@ INPUT_FASTA="results/preparation/chr21_multi.fa"
 NP=$(grep -c '^>' "$INPUT_FASTA")
 [ "$NP" -ne 5 ] && { echo "FATAL: expected 5 paths, got $NP"; exit 1; }
 echo "  $NP paths verified"
+
+# Verify reference interval is ~1 Mb, not ~47 Mb
+REF_LEN=$(python3 -c "
+s = []
+with open('$INPUT_FASTA') as f:
+    for line in f:
+        if line.startswith('>GRCh38'): continue
+        if line.startswith('>'): break
+        s.append(line.strip())
+print(len(''.join(s)))
+")
+echo "  Reference sequence length: $REF_LEN bp"
+if [ "$REF_LEN" -gt 2000000 ]; then
+    echo "FATAL: Reference is $REF_LEN bp (expected ~1,000,000). Full chr21 not sliced."
+    exit 1
+fi
 
 echo "[5/9] Baseline PGGB graph"
 bash pipeline/baseline/build_baseline.sh "$INPUT_FASTA" "results/baseline"
@@ -75,7 +104,6 @@ python3 scripts/sync_web_results.py 2>/dev/null || true
 echo "=== Pipeline Complete ==="
 echo "  Baseline: $BASELINE_GFA"
 echo "  Merged: $MERGED_GFA"
-echo "  Log: $LOG_DIR/pipeline_${TIMESTAMP}.log"
 
 if [ "$UPLOAD" = "--upload" ]; then
     dx upload results/merge/merged.gfa --destination /graphs/merged/ 2>/dev/null || true
