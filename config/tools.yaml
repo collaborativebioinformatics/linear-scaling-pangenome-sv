@@ -1,5 +1,7 @@
 # External tool configuration
 # Each tool can run locally (path or command) or via container (image + tag)
+# For the DNAnexus pipeline workstation, bioinformatics tools are installed
+# directly (samtools, minimap2, bcftools) or run through Docker (pggb, vg, odgi).
 
 tools:
   pggb:
@@ -7,48 +9,56 @@ tools:
     container:
       image: ghcr.io/pangenome/pggb
       tag: latest
+    notes: "docker pull ghcr.io/pangenome/pggb:latest"
 
   vg:
     local: vg
     container:
-      image: ghcr.io/vgteam/vg
-      tag: latest
+      image: quay.io/vgteam/vg
+      tag: v1.74.1
+    notes: "docker pull quay.io/vgteam/vg:v1.74.1"
 
   odgi:
     local: odgi
     container:
-      image: ghcr.io/pangenome/odgi
+      image: pangenome/odgi
       tag: latest
+    notes: "docker pull pangenome/odgi:latest (also bundled inside pggb container)"
 
   minimap2:
     local: minimap2
     container:
       image: biocontainers/minimap2
       tag: latest
+    notes: "Install via: sudo apt-get install -y minimap2"
 
   samtools:
     local: samtools
     container:
       image: biocontainers/samtools
       tag: latest
+    notes: "Install via: sudo apt-get install -y samtools"
 
   bcftools:
     local: bcftools
     container:
       image: biocontainers/bcftools
       tag: latest
+    notes: "Install via: sudo apt-get install -y bcftools"
 
   truvari:
     local: truvari
     container:
       image: biocontainers/truvari
       tag: latest
+    notes: "Install via: python3 -m pip install --user Truvari"
 
   dipcall:
     local: dipcall
     container:
-      image: google/deepvariant
-      tag: latest
+      image: ~  # TBD: dipcall container not yet pinned
+      tag: ~
+    notes: "Installation TBD. See pipeline/linear/README.md"
 
 # Container runtime: "docker" or "singularity"
 container_runtime: docker

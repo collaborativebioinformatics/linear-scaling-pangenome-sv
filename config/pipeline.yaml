@@ -1,5 +1,5 @@
 # Pipeline configuration for parallel pangenome graph construction
-# See docs/ARCHITECTURE.md for details
+# The smoke test runs a ~1 Mb chr21 interval to validate the full pipeline.
 
 project:
   name: parallel-pangenome
@@ -8,13 +8,13 @@ project:
 target:
   reference: GRCh38
   chromosome: chr21
-  mode: smoke          # "smoke" or "chromosome"
-  start: 20000000      # used in smoke mode
-  end: 21000000        # used in smoke mode (~1 Mb)
+  mode: smoke
+  start: 20000000
+  end: 21000000             # ~1 Mb smoke-test interval
 
 parallel:
-  chunk_size_bp: 5000000
-  overlap_bp: 100000
+  chunk_size_bp: 400000     # 400 Kb — produces 2-3 chunks for 1 Mb region
+  overlap_bp: 50000         # 50 Kb overlap for boundary reconciliation
   max_local_workers: 4
 
 pggb:
@@ -23,7 +23,7 @@ pggb:
   segment_length: 5000
 
 merge:
-  strategy: overlap_aware  # "overlap_aware" or "disjoint_union"
+  strategy: overlap_aware
   fail_on_unresolved_boundary: false
 
 output:
@@ -31,5 +31,5 @@ output:
   work_dir: work
 
 logging:
-  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  level: INFO
   log_dir: results/logs

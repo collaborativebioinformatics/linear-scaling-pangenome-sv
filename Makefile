@@ -1,25 +1,29 @@
-.PHONY: help check demo test web setup fetch-index download prepare baseline chunks merge benchmark smoke chr21 clean deploy
-TAB := $(shell printf '\t')
+.PHONY: help check demo test web setup fetch-index download prepare-ref prepare baseline chunks merge benchmark clean deploy dnanexus-setup dnanexus-pipeline
 
 help:
-	@echo "Targets: check demo test web deploy"
-	@echo "  Data:   fetch-index download prepare"
-	@echo "  Graph:  baseline chunks merge benchmark smoke chr21"
-	@echo "  Utils:  setup clean"
+	@echo "Targets:"
+	@echo "  DNAnexus:     make dnanexus-setup && make dnanexus-pipeline"
+	@echo "  Local test:   make demo && make test && make web"
+	@echo "  HPRC data:    make fetch-index && make download && make prepare-ref && make prepare"
+	@echo "  Graph build:  make baseline && make chunks && make merge && make benchmark"
 
-check:; @bash scripts/check_environment.sh
-demo:; @echo "=== Demo ===" && python3 scripts/setup_demo.py
-test:; @python3 -m pytest tests/ -v
-web:; @cd web && npm run dev
-setup:; @pip install pyyaml pytest && cd web && npm install
-fetch-index:; @python3 scripts/fetch_hprc_index.py
-download:; @python3 scripts/download_hprc.py
-prepare:; @python3 pipeline/prepare/prepare_sequences.py
-baseline:; @bash pipeline/baseline/build_baseline.sh
-chunks:; @python3 pipeline/parallel/make_chunks.py && python3 pipeline/parallel/build_all_chunks.py
-merge:; @python3 pipeline/merge/merge_graphs.py
-benchmark:; @python3 pipeline/benchmark/graph_stats.py && python3 pipeline/benchmark/compare_paths.py && bash pipeline/benchmark/benchmark_variants.sh 2>/dev/null || true && python3 pipeline/benchmark/build_report.py
-smoke:; @bash scripts/run_smoke_test.sh
-chr21:; @echo "REAL-DATA STEP: run on DNAnexus. See dnanexus/README.md"
-clean:; @rm -rf results/* work/* && echo "Cleaned"
-deploy:; @cd web && npx vercel --prod
+check:;	@bash scripts/check_environment.sh
+demo:;	@echo "=== Demo ===" && python3 scripts/setup_demo.py
+test:;	@python3 -m pytest tests/ -v
+web:;	@cd web && npm run dev
+setup:;	@pip install pyyaml pytest && cd web && npm install
+
+dnanexus-setup:;	@bash dnanexus/setup_workstation.sh
+dnanexus-pipeline:;	@bash dnanexus/run_pipeline.sh --upload
+
+fetch-index:;	@python3 scripts/fetch_hprc_index.py
+download:;	@python3 scripts/download_hprc.py --execute
+prepare-ref:;	@bash scripts/prepare_reference.sh
+prepare:;	@python3 pipeline/prepare/prepare_sequences.py
+baseline:;	@bash pipeline/baseline/build_baseline.sh
+chunks:;	@python3 pipeline/parallel/make_chunks.py && python3 pipeline/parallel/build_all_chunks.py --execute
+merge:;	@python3 pipeline/merge/merge_graphs.py
+benchmark:;	@python3 pipeline/benchmark/graph_stats.py && python3 pipeline/benchmark/compare_paths.py && bash pipeline/benchmark/benchmark_variants.sh 2>/dev/null || true && python3 pipeline/benchmark/build_report.py
+
+clean:;	@rm -rf results/* work/* web/public/data/baseline.json web/public/data/merged.json && echo "Cleaned"
+deploy:;	@cd web && npx vercel --prod
