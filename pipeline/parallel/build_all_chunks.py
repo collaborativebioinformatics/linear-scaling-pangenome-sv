@@ -4,9 +4,7 @@ each reference chunk against each HPRC assembly via minimap2.
 NO linear scaling. NO loading entire genomes — uses samtools faidx on
 the exact source_contig for each independently mapped chunk.
 """
-import argparse, csv, os, subprocess, sys
-
-MIN_MAPQ, MIN_COV = 20, 0.3
+import argparse, csv, os, subprocess, sys, yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pipeline.prepare.faidx_utils import faidx_extract, ensure_faidx, _revcomp
@@ -32,7 +30,7 @@ def extract_chunk_fasta(ref_seq, cs, ce, out):
         f.write(f">GRCh38#0#chr21:{cs}-{ce}\n")
         for i in range(0,len(c),80): f.write(c[i:i+80]+"\n")
 
-def map_chunk(ap, qry):
+def map_chunk(ap, qry, min_mapq, min_cov):
     if subprocess.run(["which","minimap2"],capture_output=True).returncode != 0: return None
     try:
         r = subprocess.run(["minimap2","-x","asm5","-t","4","--eqx","-c",str(ap),qry],
@@ -47,11 +45,15 @@ def map_chunk(ap, qry):
         st=p[4]; tn=p[5]; ts=int(p[7]); te=int(p[8])
         mat=int(p[9]); bl=int(p[10]); mpq=int(p[11])
         qc=(qe-qs)/max(qlen,1)
-        if mpq >= MIN_MAPQ and qc > bc:
+        if mpq >= min_mapq and qc > bc:
             bc=qc
             best={"source_contig":tn,"source_start":ts,"source_end":te,"strand":st,
-                  "mapping_quality":mpq,"identity":mat/max(bl,1) if bl>0 else 0,
+                  "mapping_quality":mpq,"query_coverage":qc,
+                  "identity":mat/max(bl,1) if bl>0 else 0,
                   "method":"minimap2_asm5_chunk"}
+    return best if bc >= min_cov else None
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--execute", action="store_true")
@@ -60,6 +62,12 @@ def main():
     if not chunks: print("No manifest."); return
     mapping = load_mapping()
     if not mapping: print("No mapping."); return
+
+    # Read mapping thresholds from config
+    cfg = yaml.safe_load(open("config/pipeline.yaml"))
+    mc = cfg.get("mapping", {})
+    min_mapq = mc.get("min_mapq", 20)
+    min_cov = mc.get("min_query_coverage", 0.90)
 
     # Reference — single contig, read into memory once (~47 Mb)
     ref = "work/reference/GRCh38_chr21.fa"
@@ -103,7 +111,7 @@ def main():
                 sm = r["sample"]; nh = r["haplotype"]
                 hl = r["haplotype_label"]; name = r["assembly_name"]
                 ap = hap_paths[name]
-                res = map_chunk(ap, qf)
+                res = map_chunk(ap, qf, min_mapq, min_cov)
                 if not res:
                     print(f"    FATAL: {sm} ({hl}) chunk {cid} unmapped", file=sys.stderr)
                     sys.exit(1)
@@ -121,6 +129,7 @@ def main():
                     "ref_start":cs,"ref_end":ce,
                     "source_contig":ctg,"source_start":ss,"source_end":se,
                     "strand":strand,"identity":f"{res.get('identity',0):.4f}",
+                    "query_coverage":f"{res.get('query_coverage',0):.4f}",
                     "mapping_quality":res["mapping_quality"],
                     "mapping_method":res["method"]})
         if os.path.exists(qf): os.remove(qf)
@@ -130,7 +139,7 @@ def main():
         cm_path = "results/preparation/chunk_mapping.tsv"
         fn = ["chunk_id","sample","haplotype","haplotype_label","assembly_name",
               "ref_start","ref_end","source_contig","source_start","source_end",
-              "strand","identity","mapping_quality","mapping_method"]
+              "strand","identity","query_coverage","mapping_quality","mapping_method"]
         with open(cm_path,"w",newline="") as f:
             w = csv.DictWriter(f,fieldnames=fn,delimiter="\t")
             w.writeheader(); w.writerows(cm_rows)
@@ -145,4 +154,3 @@ def main():
     print(f"Done. {len(chunks)} chunks.")
 
 if __name__=="__main__": main()
-    return best if bc >= MIN_COV else None

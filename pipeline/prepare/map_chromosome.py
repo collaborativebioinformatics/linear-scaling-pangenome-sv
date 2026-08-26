@@ -1,8 +1,8 @@
 """
 map_chromosome.py - Map the GRCh38 smoke interval to each HPRC assembly
-via minimap2, recording source_start/source_end/strand coordinates.
+via minimap2, recording source_start/source_end/strand/query_coverage.
 
-Fails hard if any interval cannot be mapped confidently.
+Fails hard if any interval fails MAPQ or query coverage thresholds.
 """
 import csv
 import gzip
@@ -10,9 +10,6 @@ import os
 import subprocess
 import sys
 import yaml
-
-MIN_MAPQ = 20
-MIN_COV = 0.3
 
 
 def _revcomp(seq):
@@ -40,7 +37,7 @@ def extract_interval(fa, start, end, out, header="query"):
             f.write(s[i:i + 80] + "\n")
 
 
-def map_interval(ap, qry):
+def map_interval(ap, qry, min_mapq, min_cov):
     """Align the query interval against the assembly via minimap2 asm5."""
     if subprocess.run(["which", "minimap2"],
                        capture_output=True).returncode != 0:
@@ -68,7 +65,7 @@ def map_interval(ap, qry):
         te = int(p[8])
         mpq = int(p[11])
         qc = (qe - qs) / max(qlen, 1)
-        if mpq >= MIN_MAPQ and qc > bc:
+        if mpq >= min_mapq and qc > bc:
             bc = qc
             best = {
                 "source_contig": tn,
@@ -76,17 +73,23 @@ def map_interval(ap, qry):
                 "source_end": te,
                 "strand": st,
                 "mapping_quality": mpq,
+                "query_coverage": qc,
                 "method": "minimap2_asm5",
             }
-    return best if bc >= MIN_COV else None
+    return best if bc >= min_cov else None
 
 
 def main():
     cfg = yaml.safe_load(open("config/pipeline.yaml"))
     tgt = cfg["target"]
+    mapping_cfg = cfg.get("mapping", {})
+    min_mapq = mapping_cfg.get("min_mapq", 20)
+    min_cov = mapping_cfg.get("min_query_coverage", 0.90)
+
     chrom, rs, re = tgt["chromosome"], tgt["start"], tgt["end"]
     print(f"=== Interval Mapping: {chrom}:{rs}-{re} "
           f"({re - rs} bp, 0-based half-open) ===")
+    print(f"  Thresholds: MAPQ>={min_mapq}, query_coverage>={min_cov}")
 
     mp = "work/manifests/hprc_selected.csv"
     if not os.path.exists(mp):
@@ -123,15 +126,16 @@ def main():
             failed.append(f"{sm} ({hl}): file not found")
             continue
 
-        res = map_interval(ap, qf)
+        res = map_interval(ap, qf, min_mapq, min_cov)
         if not res:
             failed.append(f"{sm} ({hl}): interval "
-                          f"{chrom}:{rs}-{re} unmapped")
+                          f"{chrom}:{rs}-{re} unmapped or below threshold")
             continue
 
         print(f"    -> {res['source_contig']}:{res['source_start']}-"
               f"{res['source_end']} ({res['strand']}, "
-              f"mapq={res['mapping_quality']})")
+              f"mapq={res['mapping_quality']}, "
+              f"cov={res['query_coverage']:.3f})")
 
         rows.append({
             "sample": sm, "haplotype": nh,
@@ -144,6 +148,7 @@ def main():
             "strand": res["strand"],
             "mapping_method": res["method"],
             "mapping_quality": res["mapping_quality"],
+            "query_coverage": f"{res['query_coverage']:.4f}",
             "confidence": "high" if res["mapping_quality"] >= 40
                           else "moderate",
             "status": "mapped",
@@ -153,7 +158,8 @@ def main():
     fn = ["sample", "haplotype", "haplotype_label", "assembly_name",
           "reference_chromosome", "reference_start", "reference_end",
           "source_contig", "source_start", "source_end", "strand",
-          "mapping_method", "mapping_quality", "confidence", "status"]
+          "mapping_method", "mapping_quality", "query_coverage",
+          "confidence", "status"]
     with open(mo, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fn, delimiter="\t")
         w.writeheader()

@@ -375,6 +375,27 @@ class TestMultiContigExtraction:
         os.rmdir(fa_dir)
 
 
+class TestBuildAllChunksImports:
+    """Test that build_all_chunks.py compiles and imports without syntax errors."""
+
+    def test_import_success(self):
+        import py_compile
+        import tempfile
+        path = "pipeline/parallel/build_all_chunks.py"
+        assert os.path.exists(path), f"{path} not found"
+        # Compile to catch syntax errors
+        py_compile.compile(path, doraise=True)
+
+    def test_functions_defined(self):
+        """Verify map_chunk has a return statement inside the function."""
+        with open("pipeline/parallel/build_all_chunks.py") as f:
+            content = f.read()
+        # The return must be BEFORE the main() function definition
+        main_pos = content.find("def main():")
+        return_pos = content.rfind("return best if bc", 0, main_pos)
+        assert return_pos > 0, "return best if bc... must be inside map_chunk(), before main()"
+
+
 class TestDemo:
     def test_json_exists(self):
         assert os.path.exists("web/public/data/latest.json")

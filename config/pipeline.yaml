@@ -18,6 +18,10 @@ target:
   start: 20000000
   end: 21000000             # ~1 Mb smoke-test interval (0-based half-open)
 
+mapping:
+  min_mapq: 20
+  min_query_coverage: 0.90  # Require >= 90% of query interval to be mapped
+
 parallel:
   chunk_size_bp: 400000     # 400 Kb — produces 2-3 chunks for 1 Mb region
   overlap_bp: 50000         # 50 Kb overlap for boundary reconciliation

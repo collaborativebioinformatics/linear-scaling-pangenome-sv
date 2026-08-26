@@ -110,12 +110,17 @@ def main():
     for v in validation:
         print(f"{v[0]:<30} {v[1]:<30} {v[4]:<8} {v[5]:<10}")
 
-    # Reject if any HPRC sequence >2x reference interval
+    # Reject if any HPRC sequence >2x or <0.1x reference interval length
     ref_len = validation[0][5]
     for v in validation[1:]:
         if v[5] > ref_len * 2:
             print(f"\nFATAL: {v[0]} length ({v[5]} bp) >2x ref "
                   f"({ref_len} bp). Bad mapping.", file=sys.stderr)
+            sys.exit(1)
+        if v[5] < ref_len * 0.1:
+            print(f"\nFATAL: {v[0]} length ({v[5]} bp) <0.1x ref "
+                  f"({ref_len} bp). Bad mapping or partial coverage.",
+                  file=sys.stderr)
             sys.exit(1)
 
     sz = os.path.getsize(multi) / 1e6

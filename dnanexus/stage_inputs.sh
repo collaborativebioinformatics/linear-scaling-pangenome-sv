@@ -43,62 +43,74 @@ for NAME in "${ASSEMBLY_NAMES[@]}"; do
     echo -n "  $BASE_FILE ... "
 
     # Check if already staged locally
+    BASE_EXISTS=false
     if [ -f "$LOCAL_DIR/$BASE_FILE" ] && [ -s "$LOCAL_DIR/$BASE_FILE" ]; then
         SIZE_MB=$(du -h "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | cut -f1)
         echo "FOUND IN DNANEXUS (already staged, ${SIZE_MB:-?})"
-        continue
+        BASE_EXISTS=true
     fi
 
-    # Check DNAnexus project storage using --name flag (correct syntax)
-    DNANEXUS_RESULT=$(dx find data --name "$BASE_FILE" --path "$PROJECT_ID:$HPRC_REMOTE_DIR" --brief 2>/dev/null | head -1 || echo "")
+    if [ "$BASE_EXISTS" = false ]; then
+        # Check DNAnexus project storage using --name flag (correct syntax)
+        DNANEXUS_RESULT=$(dx find data --name "$BASE_FILE" --path "$PROJECT_ID:$HPRC_REMOTE_DIR" --brief 2>/dev/null | head -1 || echo "")
 
-    if [ -n "$DNANEXUS_RESULT" ]; then
-        echo "FOUND IN DNANEXUS -> staging..."
-        # Download the main .fa.gz file
-        dx download "$PROJECT_ID:$HPRC_REMOTE_DIR/$BASE_FILE" -o "$LOCAL_DIR/$BASE_FILE" 2>/dev/null
-        if [ -f "$LOCAL_DIR/$BASE_FILE" ] && [ -s "$LOCAL_DIR/$BASE_FILE" ]; then
-            SIZE_MB=$(du -h "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | cut -f1)
-            echo "    STAGED: $BASE_FILE ($SIZE_MB)"
-
-            # Stage sidecar files if they exist on DNAnexus
-            for SIDECAR in ".fai" ".gzi" ".md5"; do
-                SIDECAR_FILE="${NAME}.fa.gz${SIDECAR}"
-                SIDECAR_EXISTS=$(dx find data --name "$SIDECAR_FILE" --path "$PROJECT_ID:$HPRC_REMOTE_DIR" --brief 2>/dev/null | head -1 || echo "")
-                if [ -n "$SIDECAR_EXISTS" ]; then
-                    dx download "$PROJECT_ID:$HPRC_REMOTE_DIR/$SIDECAR_FILE" -o "$LOCAL_DIR/$SIDECAR_FILE" 2>/dev/null
-                    echo "    STAGED: $SIDECAR_FILE"
-                fi
-            done
-
-            # Validate gzip integrity if gzip is available
-            if command -v gzip &>/dev/null; then
-                if gzip -t "$LOCAL_DIR/$BASE_FILE" 2>/dev/null; then
-                    echo "    INTEGRITY OK"
-                else
-                    echo "    WARNING: gzip integrity check FAILED"
-                fi
+        if [ -n "$DNANEXUS_RESULT" ]; then
+            echo "FOUND IN DNANEXUS -> staging..."
+            dx download "$PROJECT_ID:$HPRC_REMOTE_DIR/$BASE_FILE" -o "$LOCAL_DIR/$BASE_FILE" 2>/dev/null
+            if [ -f "$LOCAL_DIR/$BASE_FILE" ] && [ -s "$LOCAL_DIR/$BASE_FILE" ]; then
+                SIZE_MB=$(du -h "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | cut -f1)
+                echo "    STAGED: $BASE_FILE ($SIZE_MB)"
+                BASE_EXISTS=true
+            else
+                echo "    STAGED FAILED"
+                MISSING_FROM_DNANEXUS+=("$BASE_FILE")
             fi
+        else
+            echo "MISSING"
+            MISSING_FROM_DNANEXUS+=("$BASE_FILE")
+        fi
+    fi
 
-            # Check MD5 if .md5 file was staged
-            MD5_FILE="$LOCAL_DIR/${NAME}.fa.gz.md5"
-            if [ -f "$MD5_FILE" ]; then
-                EXPECTED=$(cat "$MD5_FILE" | tr -d ' \t\n')
-                ACTUAL=$(md5sum "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | cut -d' ' -f1 || \
-                         md5 -r "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | cut -d' ' -f1 || echo "")
+    # Always stage sidecar files if base FASTA exists locally
+    if [ "$BASE_EXISTS" = true ]; then
+        for SIDECAR in ".fai" ".gzi" ".md5"; do
+            SIDECAR_FILE="${NAME}.fa.gz${SIDECAR}"
+            if [ -f "$LOCAL_DIR/$SIDECAR_FILE" ]; then
+                echo "    EXISTS: $SIDECAR_FILE"
+                continue
+            fi
+            SIDECAR_EXISTS=$(dx find data --name "$SIDECAR_FILE" --path "$PROJECT_ID:$HPRC_REMOTE_DIR" --brief 2>/dev/null | head -1 || echo "")
+            if [ -n "$SIDECAR_EXISTS" ]; then
+                dx download "$PROJECT_ID:$HPRC_REMOTE_DIR/$SIDECAR_FILE" -o "$LOCAL_DIR/$SIDECAR_FILE" 2>/dev/null
+                echo "    STAGED: $SIDECAR_FILE"
+            fi
+        done
+
+        # Validate gzip integrity
+        if command -v gzip &>/dev/null; then
+            if gzip -t "$LOCAL_DIR/$BASE_FILE" 2>/dev/null; then
+                echo "    INTEGRITY OK"
+            else
+                echo "    FATAL: gzip integrity check FAILED"
+                exit 1
+            fi
+        fi
+
+        # Check MD5 — FATAL on mismatch
+        MD5_FILE="$LOCAL_DIR/${NAME}.fa.gz.md5"
+        if [ -f "$MD5_FILE" ]; then
+            EXPECTED=$(awk '{print $1}' "$MD5_FILE")
+            if echo "$EXPECTED" | grep -qE '^[0-9a-fA-F]{32}$'; then
+                ACTUAL=$(md5sum "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | awk '{print $1}' || \
+                         md5 -r "$LOCAL_DIR/$BASE_FILE" 2>/dev/null | awk '{print $1}' || echo "")
                 if [ -n "$ACTUAL" ] && [ "$EXPECTED" = "$ACTUAL" ]; then
                     echo "    MD5 OK"
                 else
-                    echo "    WARNING: MD5 mismatch (expected=$EXPECTED, actual=$ACTUAL)"
+                    echo "    FATAL: MD5 mismatch (expected=$EXPECTED, actual=$ACTUAL)"
+                    exit 1
                 fi
-            fi
-        else
-            echo "    STAGED FAILED"
-            MISSING_FROM_DNANEXUS+=("$BASE_FILE")
-        fi
-    else
-        echo "MISSING"
-        MISSING_FROM_DNANEXUS+=("$BASE_FILE")
-    fi
+            else
+                echo "    WARNING: invalid MD5 format in $MD5_FILE"
 done
 
 echo ""
