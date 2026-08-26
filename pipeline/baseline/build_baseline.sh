@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-INPUT="${1:-results/preparation/chr21_multi.fa}"
+INPUT="${1:-results/preparation/chr21_20000000_21000000_multi.fa}"
 OUTDIR="${2:-results/baseline}"
 THREADS="${3:-16}"
 REF="${4:-GRCh38}"
@@ -54,7 +54,6 @@ docker run --rm \
         -p 90 \
         -s 5000 \
         -k 29 \
-        -w 50000 \
         -j 0 \
         -e 0 \
         2>&1 | tee "results/logs/baseline.log"
