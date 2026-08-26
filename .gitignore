@@ -72,6 +72,7 @@ dnanexus_*.json
 dnanexus_*.conf
 dx*.json
 *.dx.conf
+!dnanexus/applets/**/dxapp.json
 
 # OS
 .DS_Store

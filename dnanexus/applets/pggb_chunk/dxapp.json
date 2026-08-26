@@ -1,0 +1,25 @@
+{
+  "name": "pggb_chunk",
+  "title": "PGGB Chunk Graph Builder",
+  "description": "Build a pangenome graph for one chunk using PGGB via Docker.",
+  "version": "0.1.0",
+  "inputSpec": [
+    {"name": "fasta", "class": "file", "patterns": ["*.fa","*.fasta"], "help": "Chunk FASTA file"}
+  ],
+  "outputSpec": [
+    {"name": "gfa", "class": "file", "patterns": ["*.gfa"], "help": "Output GFA graph"},
+    {"name": "log", "class": "file", "patterns": ["*.log"], "help": "PGGB execution log"},
+    {"name": "metadata", "class": "file", "patterns": ["*.json"], "help": "Run metadata JSON"}
+  ],
+  "runSpec": {
+    "interpreter": "bash",
+    "file": "src/code.sh",
+    "distribution": "Ubuntu",
+    "release": "24.04",
+    "execDepends": [{"name": "docker.io", "package_manager": "apt"}]
+  },
+  "regionalOptions": {
+    "aws:us-east-1": {"instanceType": "mem3_ssd1_v2_x16"}
+  },
+  "timeoutPolicy": {"*": {"hours": 4}}
+}
