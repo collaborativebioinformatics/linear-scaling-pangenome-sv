@@ -6,7 +6,7 @@ Spells each graph path/walk sequence and calculates:
 
 Does NOT call path-name presence "exact matching".
 """
-import hashlib, json, os, sys
+import hashlib, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from pipeline.merge.gfa import GfaGraph
@@ -66,7 +66,6 @@ def main():
         msha = hashlib.sha256(ms.encode()).hexdigest()[:16] if ms else ""
         exact = "true" if bs == ms else "false"
 
-        # Base-level identity where both sequences exist
         if bs and ms:
             mismatches = sum(1 for a, b in zip(bs, ms) if a != b)
             tail_diff = abs(blen - mlen)
