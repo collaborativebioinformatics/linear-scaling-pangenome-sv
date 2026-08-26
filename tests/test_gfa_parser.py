@@ -50,7 +50,7 @@ class TestPath:
 
 class TestWalk:
     def test_basic(self):
-        w = Walk("HG001", "1", "chr21", 0, 100, 5, ["s1+"])
+        w = Walk("HG001", "1", "chr21", 0, 100, ["s1+"])
         assert "W" in w.to_gfa()
 
 
