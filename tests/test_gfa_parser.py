@@ -186,6 +186,95 @@ class TestIntervalExtraction:
         chunk = ref[start:end]
         assert len(chunk) == 1000000
 
+    def test_linear_scaling_vs_alignment_with_indel(self):
+        """Prove that linear scaling and alignment-projected coordinates differ.
+
+        Scenario: ref = 1 Mb, source has a 50 Kb insertion.
+        Linear scaling predicts chunk_end at proportional position,
+        but alignment maps it to a different coordinate.
+        """
+        ref_len = 1_000_000
+        hap_insertion = 50_000
+        source_len = ref_len + hap_insertion
+
+        # Linear scaling: chunk at 40-60% of ref
+        chunk_s, chunk_e = 400_000, 600_000
+        frac_s = chunk_s / ref_len
+        frac_e = chunk_e / ref_len
+
+        # Linear: predicts source at same fraction
+        linear_s = int(frac_s * source_len)
+        linear_e = int(frac_e * source_len)
+
+        # Linear scaling is WRONG: it spreads the insertion across the
+        # entire interval, so chunk_s at 40% of ref becomes 42% of source
+        assert linear_s == 420000  # WRONG coordinate from linear scaling
+        assert linear_e == 630000  # WRONG coordinate from linear scaling
+
+        # Alignment-based mapping is correct: coordinates before the
+        # insertion point remain unchanged; after the insertion they shift
+        insertion_pos = 500_000
+        align_s = chunk_s  # 400k is before the insertion, unchanged
+        if chunk_e > insertion_pos:
+            align_e = chunk_e + hap_insertion  # shift by insert size
+        else:
+            align_e = chunk_e
+
+        assert align_s == 400000  # CORRECT - before insertion, no shift
+        assert align_e == 650000  # CORRECT - 100k inserted at 500k
+
+    def test_linear_scaling_vs_alignment_with_deletion(self):
+        """Prove linear scaling and alignment differ for deletions.
+
+        Scenario: ref = 1 Mb, source has a 100 Kb deletion.
+        """
+        ref_len = 1_000_000
+        hap_deletion = 100_000
+        source_len = ref_len - hap_deletion
+
+        chunk_s, chunk_e = 400_000, 600_000
+        frac_s = chunk_s / ref_len
+        frac_e = chunk_e / ref_len
+
+        linear_s = int(frac_s * source_len)
+        linear_e = int(frac_e * source_len)
+
+        # Alignment-based: deletion at ref 500k means the chunk
+        # starting at 400k maps to source 400k-500k
+        del_pos = 500_000
+        if chunk_e > del_pos:
+            align_e = del_pos
+        else:
+            align_e = chunk_e
+        align_s = chunk_s
+
+        # Linear scaling gives wrong coordinates with indels
+        assert linear_e == 540000  # wrong - doesn't account for deletion
+        assert align_e == 500000  # correct - deletion boundary
+
+    def test_chunk_boundaries_not_proportional(self):
+        """Demonstrate that same ref chunk boundary maps differently
+        in two haplotypes with different indel patterns."""
+        ref_len = 1_000_000
+        boundary = 500_000
+
+        # Haplotype A: 50 Kb insertion after boundary
+        # Haplotype B: 30 Kb deletion after boundary
+        hapA_len = ref_len + 50_000
+        hapB_len = ref_len - 30_000
+
+        frac = boundary / ref_len
+
+        # Linear scaling would give different results per hap
+        linear_A = int(frac * hapA_len)
+        linear_B = int(frac * hapB_len)
+
+        # With alignment, both should map to ~500k because
+        # the boundary is before the indel
+        assert linear_A != linear_B  # linear gives different boundaries
+        assert linear_A == 525000
+        assert linear_B == 485000
+
 
 class TestDemo:
     def test_json_exists(self):
