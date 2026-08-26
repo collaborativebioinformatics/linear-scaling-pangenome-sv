@@ -14,7 +14,7 @@ main() {
 
     # Pull/ensure PGGB Docker image
     PGGB_IMAGE="ghcr.io/pangenome/pggb:latest"
-    docker pull "$PGGB_IMAGE" 2>&1 | tail -1 || true
+    docker pull "$PGGB_IMAGE" 2>&1 | tail -1
 
     # Run PGGB
     START=$(date +%s)
