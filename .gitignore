@@ -5,8 +5,11 @@
 *.swo
 *~
 
-# Python
-__pycache__/
+# Python virtual environment
+.venv/
+venv/
+.venv/
+env/
 *.py[cod]
 *$py.class
 *.so

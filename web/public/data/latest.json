@@ -1,0 +1,33 @@
+{
+  "data_mode": "synthetic",
+  "run": {
+    "run_id": "demo",
+    "pipeline_version": "0.1.0",
+    "mode": "demo",
+    "data_mode": "synthetic",
+    "timestamp": "2026-08-26T12:36:36.425180"
+  },
+  "target": {
+    "reference": "GRCh38",
+    "chromosome": "chr21",
+    "start": 0,
+    "end": 2000
+  },
+  "samples": [
+    "HG00673",
+    "HG00733"
+  ],
+  "metrics": {
+    "baseline": {
+      "nodes": 502,
+      "edges": 497
+    },
+    "merged": {
+      "nodes": 599,
+      "edges": 584
+    }
+  },
+  "boundaries": [],
+  "bubbles": [],
+  "graphWindow": {}
+}

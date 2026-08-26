@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/data/:path*", "destination": "/api/data/:path*" }
+  ],
+  "env": {
+    "NEXT_PUBLIC_DATA_MODE": "synthetic"
+  }
+}
