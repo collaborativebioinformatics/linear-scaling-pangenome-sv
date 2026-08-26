@@ -1,0 +1,37 @@
+# Synthetic demo configuration
+# This is used by `make demo` and `scripts/setup_demo.py`
+# to generate a small end-to-end vertical slice using synthetic data.
+
+demo:
+  reference_length: 2000
+  haplotype_count: 4
+  haplotype_length: 2000
+  variants:
+    - type: insertion
+      position: 400
+      length: 50
+      sample: hap1
+    - type: deletion
+      position: 800
+      length: 30
+      sample: hap2
+    - type: snp_cluster
+      position: 1200
+      count: 5
+      sample: hap3
+    - type: complex
+      position: 1600
+      description: "50bp substitution with 20bp flanking indel"
+      sample: hap4
+
+  chunk:
+    size: 800
+    overlap: 100
+
+  output:
+    reference_fasta: tests/fixtures/tiny_reference.fa
+    haplotypes_fasta: tests/fixtures/tiny_haplotypes.fa
+    chunk_dir: work/demo/chunks
+    merged_gfa: work/demo/merged.gfa
+    baseline_gfa: work/demo/baseline.gfa
+    json_output: web/public/data/latest.json

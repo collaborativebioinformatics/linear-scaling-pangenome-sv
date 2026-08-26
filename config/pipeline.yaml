@@ -1,0 +1,35 @@
+# Pipeline configuration for parallel pangenome graph construction
+# See docs/ARCHITECTURE.md for details
+
+project:
+  name: parallel-pangenome
+  version: 0.1.0
+
+target:
+  reference: GRCh38
+  chromosome: chr21
+  mode: smoke          # "smoke" or "chromosome"
+  start: 20000000      # used in smoke mode
+  end: 21000000        # used in smoke mode (~1 Mb)
+
+parallel:
+  chunk_size_bp: 5000000
+  overlap_bp: 100000
+  max_local_workers: 4
+
+pggb:
+  threads: 16
+  minimum_identity: 90
+  segment_length: 5000
+
+merge:
+  strategy: overlap_aware  # "overlap_aware" or "disjoint_union"
+  fail_on_unresolved_boundary: false
+
+output:
+  results_dir: results
+  work_dir: work
+
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  log_dir: results/logs

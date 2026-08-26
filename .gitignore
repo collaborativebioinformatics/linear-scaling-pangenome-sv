@@ -1,0 +1,75 @@
+# Environment
+.env
+.env.local
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Node / Web
+node_modules/
+.next/
+out/
+.web-build/
+
+# Large genomic data — DO NOT COMMIT
+*.fasta
+*.fa
+*.fna
+*.fastq
+*.fq
+*.gfa
+*.gfa.gz
+*.vg
+*.vcf
+*.vcf.gz
+*.bcf
+*.bam
+*.cram
+*.sam
+*.bai
+*.crai
+*.tbi
+*.csi
+*.gzi
+*.gbz
+*.gff
+*.gtf
+*.bed
+*.bigwig
+*.bw
+
+# Pipeline working / results (except small fixtures)
+work/
+results/
+!tests/fixtures/
+!tests/fixtures/**/*
+!web/public/data/
+
+# Docker
+.docker/
+*.tar
+*.tar.gz
+
+# DNAnexus
+dnanexus_*.json
+dnanexus_*.conf
+dx*.json
+*.dx.conf
+
+# OS
+.DS_Store
+Thumbs.db

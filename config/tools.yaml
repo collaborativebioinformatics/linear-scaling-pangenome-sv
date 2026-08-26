@@ -1,0 +1,54 @@
+# External tool configuration
+# Each tool can run locally (path or command) or via container (image + tag)
+
+tools:
+  pggb:
+    local: pggb
+    container:
+      image: ghcr.io/pangenome/pggb
+      tag: latest
+
+  vg:
+    local: vg
+    container:
+      image: ghcr.io/vgteam/vg
+      tag: latest
+
+  odgi:
+    local: odgi
+    container:
+      image: ghcr.io/pangenome/odgi
+      tag: latest
+
+  minimap2:
+    local: minimap2
+    container:
+      image: biocontainers/minimap2
+      tag: latest
+
+  samtools:
+    local: samtools
+    container:
+      image: biocontainers/samtools
+      tag: latest
+
+  bcftools:
+    local: bcftools
+    container:
+      image: biocontainers/bcftools
+      tag: latest
+
+  truvari:
+    local: truvari
+    container:
+      image: biocontainers/truvari
+      tag: latest
+
+  dipcall:
+    local: dipcall
+    container:
+      image: google/deepvariant
+      tag: latest
+
+# Container runtime: "docker" or "singularity"
+container_runtime: docker

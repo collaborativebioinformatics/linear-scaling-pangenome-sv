@@ -1,0 +1,24 @@
+# HPRC Release 2 samples for the parallel pangenome experiment
+# See: https://github.com/human-pangenomics/hprc_intermediate_assembly
+#
+# Initial set: 4 haplotypes + GRCh38 reference = 5 total paths
+
+samples:
+  - sample: HG00673
+    haplotypes:
+      - name: maternal
+        assembly: HG00673_mat_hprc_r2_v1.0.1
+      - name: paternal
+        assembly: HG00673_pat_hprc_r2_v1.0.1
+
+  - sample: HG00733
+    haplotypes:
+      - name: maternal
+        assembly: HG00733_mat_hprc_r2_v1.0.1
+      - name: paternal
+        assembly: HG00733_pat_hprc_r2_v1.0.1
+
+reference:
+  name: GRCh38
+  uri: https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38
+  filename: GRCh38.fa
