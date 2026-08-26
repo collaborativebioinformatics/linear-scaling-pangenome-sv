@@ -5,9 +5,15 @@ NO naive coordinate slicing. Uses map_chromosome.py to identify correct
 chr21 contigs, extracts them fully. PGGB handles alignment.
 """
 import csv
+import gzip
 import os
 import sys
 import yaml
+
+
+def _open_fasta(path):
+    """Open a FASTA in text mode, transparently handling bgzip/gzip."""
+    return gzip.open(path, "rt") if str(path).endswith(".gz") else open(path)
 
 
 def main():
@@ -43,6 +49,10 @@ def main():
 
             sm, hap = row["sample"], row["haplotype"]
             tag = "mat" if hap == "maternal" else "pat"
+            # PanSN requires an INTEGER haplotype field: sample#hap#contig
+            # HPRC convention (confirmed vs /data/chr21/chr21_contigs.tsv):
+            # haplotype 1 = paternal, haplotype 2 = maternal.
+            hnum = "2" if hap == "maternal" else "1"
             name_key = f"{sm}_{tag}_hprc_r2_v1.0.1"
             contig_name = row["source_contig"].split()[0]
 
@@ -60,7 +70,7 @@ def main():
                 continue
 
             seq_path = f"work/preparation/{sm}_{hap}_chr21.fa"
-            with open(ap) as fin, open(seq_path, "w") as fout:
+            with _open_fasta(ap) as fin, open(seq_path, "w") as fout:
                 mode = False
                 for line in fin:
                     if line.startswith(">"):
@@ -68,7 +78,7 @@ def main():
                         if (h == contig_name or h.endswith("chr21")
                                 or "#chr21" in h):
                             mode = True
-                            fout.write(f">{sm}#{hap}#{chrom}\n")
+                            fout.write(f">{sm}#{hnum}#{chrom}\n")
                         else:
                             mode = False
                     elif mode:
@@ -86,8 +96,8 @@ def main():
                 # Fallback: write full assembly
                 print(f"  WARNING: chr21 not found in {sm} ({hap}). "
                       "Writing full assembly.")
-                with open(ap) as fin:
-                    out.write(f">{sm}#{hap}#{chrom}\n")
+                with _open_fasta(ap) as fin:
+                    out.write(f">{sm}#{hnum}#{chrom}\n")
                     for line in fin:
                         if not line.startswith(">"):
                             out.write(line)

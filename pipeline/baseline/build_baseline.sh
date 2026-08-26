@@ -24,6 +24,23 @@ if [ ! -f "$INPUT" ]; then
     exit 1
 fi
 
+# PGGB/wfmash require a bgzip-compressed, faidx-indexed FASTA.
+if [[ "$INPUT" != *.gz ]]; then
+    if [ -f "${INPUT}.gz" ]; then
+        INPUT="${INPUT}.gz"
+    else
+        echo "Compressing input with bgzip..."
+        bgzip -@ "$THREADS" -k "$INPUT"
+        INPUT="${INPUT}.gz"
+    fi
+fi
+if [ ! -f "${INPUT}.fai" ] || [ ! -f "${INPUT}.gzi" ]; then
+    echo "Indexing $INPUT ..."
+    samtools faidx "$INPUT"
+fi
+NSEQ=$(wc -l < "${INPUT}.fai" | tr -d ' ')
+echo "Input sequences: $NSEQ"
+
 if ! docker image inspect "$PGGB_IMAGE" &>/dev/null; then
     echo "Pulling PGGB container: $PGGB_IMAGE"
     docker pull "$PGGB_IMAGE"
@@ -50,7 +67,7 @@ docker run --rm \
         -i "/data/input/$(basename "$INPUT")" \
         -o "/data/output" \
         -t "$THREADS" \
-        -n "$(grep -c '^>' "$INPUT")" \
+        -n "$NSEQ" \
         -p 90 \
         -s 5000 \
         -k 29 \
@@ -79,7 +96,7 @@ cat > "$OUTDIR/run_metadata.json" << JSONEOF
 {
   "method": "monolithic",
   "target": "chr21",
-  "input_paths": $(grep -c '^>' "$INPUT"),
+  "input_paths": $NSEQ,
   "threads": $THREADS,
   "wall_seconds": $DURATION,
   "peak_memory_kb": null,

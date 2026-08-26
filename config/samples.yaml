@@ -20,5 +20,6 @@ samples:
 
 reference:
   name: GRCh38
+  # Already embedded in the prepared multi-FASTA at /data/chr21/chr21_multi.fa
   uri: https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38
   filename: GRCh38.fa
