@@ -3,7 +3,6 @@
 
 > **Research question:** Can regional pangenome graphs be constructed independently in parallel and subsequently reassembled into a single graph while preserving haplotype paths, topology, sequence content, and variant representation relative to a conventionally constructed monolithic graph?
 ## Quick Start
----
 !!!! to be added soon :) !!!!
 ---
 
