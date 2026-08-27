@@ -82,7 +82,6 @@ def load_provenance(path="work/chunks/provenance.json"):
 def save_provenance(prov, path="work/chunks/provenance.json"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f: json.dump(prov, f, indent=2)
-    return best if bc >= min_cov else None
 
 
 def main():

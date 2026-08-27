@@ -153,7 +153,7 @@ for i in "${!JOB_IDS[@]}"; do
     STARTED_RUN_MS=$(echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('startedRunning',0))" 2>/dev/null || echo "0")
     STOPPED_RUN_MS=$(echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('stoppedRunning',0))" 2>/dev/null || echo "0")
     JOB_WALL=$(( (STOPPED_RUN_MS - STARTED_RUN_MS) / 1000 ))
-    echo "OK (start=$STARTED_TS, stop=$STOPPED_TS)"
+    echo "OK (start_ms=$STARTED_RUN_MS, stop_ms=$STOPPED_RUN_MS, wall=${JOB_WALL}s)"
 
     # Download GFA using job output reference (formal gfa output link)
     echo "    Downloading GFA..."

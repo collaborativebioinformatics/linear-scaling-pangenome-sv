@@ -108,28 +108,42 @@ if [ -n "${DX_PROJECT_ID:-${DX_PROJECT_CONTEXT_ID:-}}" ]; then
                 --destination /graphs/baseline/ \
                 --brief 2>/dev/null || echo "")
             if [ -n "$BASELINE_JOB" ]; then
-                echo "  Baseline job: $BASELINE_JOB"
+                echo "  Baseline job: $BASELINE_JOB (waiting...)"
                 dx wait "$BASELINE_JOB" 2>/dev/null || true
                 JOB_JSON=$(dx describe "$BASELINE_JOB" --json 2>/dev/null || echo "{}")
-                GFA_FILE_ID=$(echo "$JOB_JSON" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-o=d.get('output',{})
-f=o.get('gfa',{})
-if isinstance(f,dict): print(f.get('\$dnanexus_link',''))
-elif f: print(str(f))
-" 2>/dev/null || echo "")
-                [ -n "$GFA_FILE_ID" ] && dx download "$GFA_FILE_ID" -o "$BASELINE_GFA" 2>/dev/null || true
+                JOB_STATE=$(echo "$JOB_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('state','unknown'))" 2>/dev/null || echo "unknown")
+                if [ "$JOB_STATE" != "done" ]; then
+                    echo "FATAL: Baseline job state is $JOB_STATE (expected 'done')"
+                    exit 1
+                fi
+                echo "  Baseline job state: $JOB_STATE"
+                # Download all formal outputs: gfa, log, metadata
+                _get_out() { local k="$1"; echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); o=d.get('output',{}); f=o.get('$k',{}); print(f.get('\$dnanexus_link','') if isinstance(f,dict) else str(f) if f else '')" 2>/dev/null; }
+                GFA_OUT=$(_get_out gfa)
+                LOG_OUT=$(_get_out log)
+                META_OUT=$(_get_out metadata)
+                if [ -n "$GFA_OUT" ]; then
+                    mkdir -p results/baseline results/logs
+                    dx download "$GFA_OUT" -o "$BASELINE_GFA" 2>/dev/null || true
+                fi
+                if [ -n "$LOG_OUT" ]; then
+                    dx download "$LOG_OUT" -o results/logs/baseline_pggb.log 2>/dev/null || true
+                fi
+                if [ -n "$META_OUT" ]; then
+                    dx download "$META_OUT" -o results/baseline/run_metadata.json 2>/dev/null || true
+                fi
             fi
         fi
     fi
 fi
-# No local fallback for scientific benchmark
+# No local fallback for scientific benchmark - require all three outputs
 if [ ! -f "$BASELINE_GFA" ]; then
-    echo "FATAL: Baseline PGGB failed."
+    echo "FATAL: Baseline PGGB failed - no baseline.gfa produced."
     exit 1
 fi
-[ ! -f "$BASELINE_GFA" ] && { echo "FATAL: no baseline graph"; exit 1; }
+if [ ! -f "results/baseline/run_metadata.json" ]; then
+    echo "WARNING: Baseline run_metadata.json not found (job may not have produced it yet)"
+fi
 echo "  Baseline: $BASELINE_GFA"
 
 echo "[6/9] Chunks"

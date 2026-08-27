@@ -19,15 +19,15 @@ main() {
     THREADS=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('threads',8))")
     MIN_ID=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('minimum_identity',90))")
     SEG_LEN=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('segment_length',5000))")
-    KMER=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('kmer_length',29))")
-    WINDOW=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('window_size',50000))")
-    MAP_PCT=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('map_pct_id',0))")
-    NOISE=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('noise_filter',0))")
+    MATCH_LEN=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('match_length',29))")
+    MASH_KMER=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('mash_kmer',31))")
+    PATH_JUMP=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('path_jump_max',0))")
+    EDGE_JUMP=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('edge_jump_max',0))")
     PGGB_IMAGE=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('image','ghcr.io/pangenome/pggb:latest'))")
     CONFIG_SHA256=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('config_sha256',''))")
 
     echo "PGGB params from pggb_config_json:"
-    echo "  threads=$THREADS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"
+    echo "  threads=$THREADS -p $MIN_ID -s $SEG_LEN -K $MASH_KMER -k $MATCH_LEN -j $PATH_JUMP -e $EDGE_JUMP"
     echo "  image=$PGGB_IMAGE"
     echo ""
 
@@ -51,10 +51,10 @@ main() {
             -n "$NUM_PATHS" \
             -p "$MIN_ID" \
             -s "$SEG_LEN" \
-            -k "$KMER" \
-            -w "$WINDOW" \
-            -j "$MAP_PCT" \
-            -e "$NOISE" \
+            -K "$MASH_KMER" \
+            -k "$MATCH_LEN" \
+            -j "$PATH_JUMP" \
+            -e "$EDGE_JUMP" \
             2>&1 | tee pggb.log
 
     END=$(date +%s)
@@ -114,12 +114,12 @@ except: print('unknown')
   "pggb_params": {
     "minimum_identity": $MIN_ID,
     "segment_length": $SEG_LEN,
-    "kmer_length": $KMER,
-    "window_size": $WINDOW,
-    "map_pct_id": $MAP_PCT,
-    "noise_filter": $NOISE
+    "match_length": $MATCH_LEN,
+    "mash_kmer": $MASH_KMER,
+    "path_jump_max": $PATH_JUMP,
+    "edge_jump_max": $EDGE_JUMP
   },
-  "full_command": "pggb -i /data/input.fa -o /data/output -t $THREADS -n $NUM_PATHS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"
+  "full_command": "pggb -i /data/input.fa -o /data/output -t $THREADS -n $NUM_PATHS -p $MIN_ID -s $SEG_LEN -K $MASH_KMER -k $MATCH_LEN -j $PATH_JUMP -e $EDGE_JUMP"
 }
 JSONEOF
 

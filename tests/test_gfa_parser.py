@@ -460,8 +460,8 @@ class TestP0Regression:
         import yaml
         cfg = yaml.safe_load(open("config/pipeline.yaml"))
         params = cfg.get("pggb", {}).get("params", {})
-        for k in ["minimum_identity", "segment_length", "kmer_length",
-                    "window_size", "map_pct_id", "noise_filter"]:
+        for k in ["minimum_identity", "segment_length", "mash_kmer",
+                    "match_length", "path_jump_max", "edge_jump_max"]:
             assert params.get(k) is not None, f"{k} must be set"
         img = cfg.get("pggb", {}).get("image", "")
         assert ":latest" not in img, f"PGGB image must be pinned (got: {img})"

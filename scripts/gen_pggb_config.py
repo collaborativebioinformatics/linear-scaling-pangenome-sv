@@ -11,16 +11,18 @@ def load_config():
     cfg = yaml.safe_load(open("config/pipeline.yaml"))
     pggb = cfg.get("pggb", {})
     params = pggb.get("params", {})
+    # NOTE: PGGB v0.6.0 does NOT have a -w option.
+    # -K = mash k-mer (mash_kmer), -k = seqwish minimum match length (match_length)
     return {
         "image": pggb.get("image", "ghcr.io/pangenome/pggb:latest"),
         "image_tag": pggb.get("image_tag", "latest"),
         "threads": pggb.get("threads", 8),
         "minimum_identity": params.get("minimum_identity", 90),
         "segment_length": params.get("segment_length", 5000),
-        "kmer_length": params.get("kmer_length", 29),
-        "window_size": params.get("window_size", 50000),
-        "map_pct_id": params.get("map_pct_id", 0),
-        "noise_filter": params.get("noise_filter", 0),
+        "mash_kmer": params.get("mash_kmer", 31),
+        "match_length": params.get("match_length", 29),
+        "path_jump_max": params.get("path_jump_max", 0),
+        "edge_jump_max": params.get("edge_jump_max", 0),
     }
 
 

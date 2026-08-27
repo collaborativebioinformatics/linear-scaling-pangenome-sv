@@ -29,25 +29,32 @@ parallel:
 
 # PGGB algorithm parameters — SINGLE SOURCE OF TRUTH for both baseline and chunks.
 # Any change here is reflected everywhere. Do NOT hardcode pggb flags in shell scripts.
+# These flags correspond to PGGB v0.6.0 CLI (verified against pinned digest).
+# Reference: https://github.com/pangenome/pggb/blob/master/docs/rst/essential_parameters.rst
 pggb:
   threads: 8               # Default threads for PGGB (use config or nproc)
   params:
-    minimum_identity: 90   # -p: minimum identity for alignment
-    segment_length: 5000   # -s: segment length for homopolymer compression
-    kmer_length: 29        # -k: k-mer length for sparse minimizer sketch
-    window_size: 50000     # -w: window length for pangenome graph
-    map_pct_id: 0          # -j: mapping alignment identity filter (0 = none)
-    # For canonical PGGB command:
-    # pggb -i input.fa -o output -t THREADS -n NUM_PATHS -p 90 -s 5000 -k 29 -w 50000 -j 0 -e 0
-    noise_filter: 0        # -e: noise filter ratio
+    # -p: minimum identity for mapping (%) — graph-shaping parameter
+    minimum_identity: 90
+    # -s: segment length for homopolymer compression — graph-shaping parameter
+    segment_length: 5000
+    # -K: k-mer size for Mash sketch (minimizer) — controls sensitivity
+    mash_kmer: 31
+    # -k: minimum exact-match length for seqwish match — affects graph complexity
+    match_length: 29
+    # -j: smoothxg maximum path jump — gaps allowed when building layout
+    path_jump_max: 0
+    # -e: smoothxg maximum edge jump — gaps allowed in edges
+    edge_jump_max: 0
+    # Canonical PGGB v0.6.0 command:
+    # pggb -i input.fa -o output -t THREADS -n NUM_PATHS -p 90 -s 5000 -K 31 -k 29 -j 0 -e 0
+    # NOTE: -w is NOT a valid option in PGGB v0.6.0.
+    # NOTE: -K (mash k-mer) and -k (seqwish match) are distinct parameters.
 
   # Immutable image reference — NEVER use :latest for scientific benchmarks.
   # Pinned to a specific digest for reproducibility.
   image: ghcr.io/pangenome/pggb@sha256:2e89b1d1e4f48b33e5af8c4bd677e8145f953d80cbedc86e8b525ce5a27a6c38
   image_tag: v0.6.0
-  # ^ Use explicit tag for readability, digest for reproducibility.
-  # The tagged image should resolve to the digest above; if they diverge,
-  # the digest takes precedence.
 
 merge:
   strategy: overlap_aware
