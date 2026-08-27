@@ -8,15 +8,11 @@
 # Python virtual environment
 .venv/
 venv/
-.venv/
 env/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-.venv/
 *.egg-info/
 dist/
 build/
@@ -27,6 +23,7 @@ node_modules/
 .next/
 out/
 .web-build/
+*.tsbuildinfo
 
 # Large genomic data — DO NOT COMMIT
 *.fasta
