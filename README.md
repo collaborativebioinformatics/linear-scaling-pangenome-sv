@@ -1,10 +1,12 @@
-<img width="2347" height="1660" alt="logo" src="https://github.com/user-attachments/assets/e0a37556-7659-4a01-becb-7b6bf4b1e008" />
+
 # Parallel Pangenome Graph Construction (Linear Scaling SV)
 
 > **Research question:** Can regional pangenome graphs be constructed independently in parallel and subsequently reassembled into a single graph while preserving haplotype paths, topology, sequence content, and variant representation relative to a conventionally constructed monolithic graph?
 ## Quick Start
 ---
 ---
+
+<img width="2347" height="1660" alt="logo" src="https://github.com/user-attachments/assets/e0a37556-7659-4a01-becb-7b6bf4b1e008" />
 
 ## Introduction
 
