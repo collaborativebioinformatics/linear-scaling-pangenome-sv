@@ -16,15 +16,19 @@ Full editable deck: [`methods_slides.pptx`](methods_slides.pptx)
 
 ## Who Is Doing What?
 
+**Full task breakdown with commands, file paths, and acceptance criteria:**
+👉 **[docs/TASK_BREAKDOWN.md](docs/TASK_BREAKDOWN.md)**
+
 | Person | Primary Area | What They Are Working On |
 |--------|-------------|--------------------------|
-| **Michael** | Pangenome graph construction | Lead PGGB/graph construction, graph method validation, biological graph troubleshooting |
-| **Khoi** | Pipeline + linear/assembly workflow | Pipeline coding, linear-reference assembly-based SV calling, method validation |
-| **Quang** | Pipeline architecture + graph merging | Pipeline architecture, chunk graph merging/reassembly algorithm, software engineering, testing |
-| **Ali** | Pipeline + DNAnexus + integration + web | Pipeline coding, DNAnexus integration, benchmarking, end-to-end integration, web visualizer |
-| **Alexander** | Documentation + presentation | Documentation, presentation, project story, explainability |
+| **Quang** | Pipeline architecture + graph merging | 🔴 **Q1 (HARD BLOCKER):** Overlap-aware stitch integration. Fix `setup_demo.py` config reading, `_load_chunks` path, and `chunk_rows` parameter. Merge `quang-overlap-aware-merge` branch to main. |
+| **Michael** | Pangenome graph construction | M1: Run real PGGB applet on DNAnexus (micro-test). M2/M3: Build baseline + chunk graphs on DNAnexus. M4: Full 1 Mb smoke test. |
+| **Khoi** | Pipeline + linear/assembly workflow | K1: Dipcall wrapper validation. K2: SVIM-asm wrapper. K3: Truvari variant comparison. K4: Method documentation. |
+| **Ali** | Pipeline + DNAnexus + integration + web | ✅ A1-A5 complete. 🔵 **A6-A10 (current):** Web visualization — data export pipeline, benchmark display, chunk visualization, compare mode, Vercel deploy. |
+| **Alexander** | Documentation + presentation | D1: Update architecture doc. D2: DNAnexus operations guide. D3: Web visualization guide. D4: Final presentation. |
+| **Lex** | PGGB benchmarking | L1: Local PGGB cost benchmarks. L2: Graph cost model. L3: Document findings. L4: Merge into pipeline. |
 
-> **Important:** The pipeline is a shared technical responsibility. Michael, Khoi, Quang, and Ali collaboratively implement and troubleshoot the pipeline with overlapping ownership.
+> **Important:** The pipeline is a shared technical responsibility. Everyone collaboratively implements and troubleshoots.
 
 ---
 
@@ -75,11 +79,18 @@ HPRC Release 2 (4 haplotypes + GRCh38)
 | GFA parser | ✅ | Parse, dump, roundtrip, file I/O |
 | Chunking | ✅ | Overlapping chunks, configurable pairwise overlap |
 | Merge (disjoint union) | ✅ | Namespace-safe concatenation, diagnostic only |
-| Overlap-aware stitch | 🟡 NOT_IMPLEMENTED | Next algorithm milestone |
+| Overlap-aware stitch | 🟡 NOT_IMPLEMENTED | Algorithm exists on quang branch, needs integration (Q1) |
 | Synthetic demo | ✅ | `make demo` generates full vertical slice |
-| Tests | ✅ 55 pass, 2 skip | GFA, chunking, merge, interval mapping, W-line, provenance, parent-locus, orchestration |
-| Web app | ✅ Initial | Next.js, loads JSON, dashboard |
+| Tests | ✅ 105 pass, 2 skip | GFA, chunking, merge, interval mapping, W-line, provenance, graph stats |
+| Web explorer | ✅ Interactive | Cytoscape.js graph, sample/haplotype selector, inspector, 4 tabs |
+| Web JSON guard | ✅ | `guard_no_genomic()` blocks GFA/FASTA/VCF |
+| DNAnexus applets | ✅ Built | `pggb_chunk` + `pggb_baseline`, instance `mem3_ssd1_v2_x16` |
+| DNAnexus dry-run | ✅ | 3 chunks validated, FATAL checks verified |
+| Graph statistics | ✅ | Full topology, comparison, TSV export |
 | Environment checker | ✅ | Pipeline-tiered: REQUIRED / CONTAINER / WEB_OPTIONAL |
+| Stitch boundary validation | 🟡 NOT_RUN | Requires Q1 first |
+| Equivalence validation | 🟡 NOT_RUN | Requires Q1 + M1-M4 first |
+| Variant comparison | 🟡 NOT_RUN | Requires K1-K3 first |
 ---
 
 ## Quick Start
