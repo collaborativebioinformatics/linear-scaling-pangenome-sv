@@ -6,6 +6,13 @@
 
 ## Methods
 
+<img src="slides/Screenshot 2026-08-27 at 8.53.22 AM.png" width="800"><br>
+<img src="slides/Screenshot 2026-08-27 at 8.53.46 AM.png" width="800"><br>
+<img src="slides/Screenshot 2026-08-27 at 8.55.52 AM.png" width="800">
+
+Full editable deck: [`methods_slides.pptx`](methods_slides.pptx)
+
+---
 
 ## Who Is Doing What?
 
