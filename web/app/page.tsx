@@ -35,13 +35,30 @@ export default function Home() {
       <header className="header">
         <h1>Parallel Pangenome Graph Explorer</h1>
         <p>Comparing monolithic vs parallel pangenome graph construction</p>
-        <span className={"badge " + (isDemo ? "badge-demo" : "badge-real")}>{isDemo ? "DEMO DATA" : "REAL HPRC DATA"}</span>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <span className={"badge " + (isDemo ? "badge-demo" : "badge-real")}>{isDemo ? "DEMO DATA" : "REAL HPRC DATA"}</span>
+          <span className="badge badge-warn">STITCH: NOT_IMPLEMENTED</span>
+        </div>
       </header>
       <section className="section">
         <h2>Dashboard</h2>
         <div className="grid-2">
           <Card title="Monolithic (Baseline)" rows={[["Nodes",bl.nodes as number],["Edges",bl.edges as number],["Paths",bl.paths as number]]} />
           <Card title="Parallel + Merged" rows={[["Nodes",mg.nodes as number],["Edges",mg.edges as number],["Paths",mg.paths as number]]} />
+        </div>
+      </section>
+      <section className="section">
+        <h2>Pipeline Status</h2>
+        <div className="card" style={{marginBottom:16}}>
+          <p><span className="badge badge-ok">BASELINE: IMPLEMENTED</span> &nbsp;
+             <span className="badge badge-ok">CHUNKS: IMPLEMENTED</span></p>
+          <p><span className="badge badge-warn">STITCH: NOT IMPLEMENTED</span> &nbsp;
+             <span className="badge badge-warn">EQUIVALENCE: NOT RUN</span></p>
+          <p style={{fontSize:13,color:"#666"}}>
+            The merged graph shown is a <strong>diagnostic disjoint union only</strong>.
+            Overlap-aware stitching has not been implemented yet.
+            Do not interpret merged paths as validated stitched results.
+          </p>
         </div>
       </section>
       <section className="section">

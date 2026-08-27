@@ -21,18 +21,45 @@ def main():
     ]
 
     for src, dst in sources:
-        if os.path.exists(src):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy2(src, dst)
-            print(f"Synced {src} -> {dst}")
-        else:
+        if not os.path.exists(src):
             print(f"  SKIP {src} (not found)")
+            continue
+        if not guard_no_genomic(src):
+            continue
+        if not guard_file_size(src, int(os.environ.get("WEB_MAX_FILE_MB", "10"))):
+            continue
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+        print(f"Synced {src} -> {dst}")
 
-    # Copy the demo JSON as fallback if real results don't exist
+    # Scan web/public for forbidden files
+    for root, dirs, files in os.walk("web/public"):
+        for fn in files:
+            fp = os.path.join(root, fn)
+            guard_no_genomic(fp)
+
+    # Fallback check
     demo_json = "web/public/data/latest.json"
     if not os.path.exists(demo_json) or os.path.getsize(demo_json) < 10:
         print("WARNING: No pipeline results yet. Run `make demo` for synthetic data.")
 
+
+
+def guard_no_genomic(path):
+    """Refuse GFA/FASTA/VCF files in web/public."""
+    forbidden = [".gfa", ".fa", ".fasta", ".vcf", ".vcf.gz", ".fa.gz", ".gfa.gz"]
+    ext = os.path.splitext(path)[1].lower()
+    if ext in forbidden or any(path.endswith(e) for e in forbidden):
+        print(f"  BLOCKED: {path} - genomic files not allowed in web/public/")
+        return False
+    return True
+
+def guard_file_size(filepath, max_mb=10):
+    """Refuse files larger than max_mb."""
+    if os.path.exists(filepath) and os.path.getsize(filepath) > max_mb * 1024 * 1024:
+        print(f"  SKIP {filepath}: {os.path.getsize(filepath)/1024/1024:.1f}MB > {max_mb}MB limit")
+        return False
+    return True
 
 if __name__ == "__main__":
     main()

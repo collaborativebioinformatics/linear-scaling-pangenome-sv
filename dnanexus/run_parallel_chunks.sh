@@ -13,6 +13,14 @@
 # 6. Record per-chunk timing and aggregate metrics
 set -euo pipefail
 
+# === DRY RUN MODE ===
+DRY_RUN=false
+if [ "${1:-}" = "--dry-run" ]; then
+    DRY_RUN=true
+    echo "  DRY RUN MODE — validates counts, manifest, applet; no uploads/jobs/downloads"
+    shift
+fi
+
 PROJECT_ID="${DX_PROJECT_CONTEXT_ID:-${DX_PROJECT_ID:-}}"
 INSTANCE="${PGGB_INSTANCE_TYPE:-mem3_ssd1_v2_x16}"
 
@@ -89,6 +97,15 @@ while IFS=$'\t' read -r CID _ _ _ _ _ _ _ _; do
     # Launch chunk job — MUST succeed
     echo "    Launching PGGB job..."
     PGGB_CONFIG_JSON=$(python3 scripts/gen_pggb_config.py)
+    
+    if [ "$DRY_RUN" = true ]; then
+        echo "    DRY RUN: would upload $CID.fa, launch job"
+        UPLOADED_COUNT=$((UPLOADED_COUNT + 1))
+        JOB_IDS+=("dry-run-$CID")
+        CHUNK_IDS+=("$CID")
+        continue
+    fi
+    
     JOB_ID=$(dx run "$APPLET_ID" \
         -i fasta="$FASTA_FILE_ID" \
         -i pggb_config_json="$PGGB_CONFIG_JSON" \

@@ -14,48 +14,17 @@ main() {
     NUM_PATHS=$(grep -c '^>' input.fa)
     echo "Paths in input: $NUM_PATHS"
 
-    # Read canonical PGGB config from pipeline.yaml
-    THREADS=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-p = c['pggb']
-print(p.get('threads', 8))
-    ")
-    MIN_ID=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb']['params'].get('minimum_identity', 90))
-    ")
-    SEG_LEN=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb']['params'].get('segment_length', 5000))
-    ")
-    KMER=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb']['params'].get('kmer_length', 29))
-    ")
-    WINDOW=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb']['params'].get('window_size', 50000))
-    ")
-    MAP_PCT=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb']['params'].get('map_pct_id', 0))
-    ")
-    NOISE=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb']['params'].get('noise_filter', 0))
-    ")
-    PGGB_IMAGE=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('pggb_config_json'))
-print(c['pggb'].get('image', 'ghcr.io/pangenome/pggb:latest'))
-    ")
+    # Parse PGGB config from JSON string input (stdlib json only)
+    CFG_JSON="$pggb_config_json"
+    THREADS=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('threads',8))")
+    MIN_ID=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('minimum_identity',90))")
+    SEG_LEN=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('segment_length',5000))")
+    KMER=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('kmer_length',29))")
+    WINDOW=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('window_size',50000))")
+    MAP_PCT=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('map_pct_id',0))")
+    NOISE=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('noise_filter',0))")
+    PGGB_IMAGE=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('image','ghcr.io/pangenome/pggb:latest'))")
+    CONFIG_SHA256=$(echo "$CFG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('config_sha256',''))")
 
     echo "PGGB params from pggb_config_json:"
     echo "  threads=$THREADS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"

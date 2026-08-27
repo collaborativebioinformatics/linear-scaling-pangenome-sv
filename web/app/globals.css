@@ -94,3 +94,5 @@ pre, code {
   border-bottom: 2px solid #0066cc;
   padding-bottom: 8px;
 }
+.badge-warn { background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius:4px; padding:2px 8px; font-size:12px; font-weight:600; }
+.badge-ok { background: #d4edda; color: #155724; border: 1px solid #28a745; border-radius:4px; padding:2px 8px; font-size:12px; font-weight:600; }
