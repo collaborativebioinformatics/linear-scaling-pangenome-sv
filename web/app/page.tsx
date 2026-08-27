@@ -1,73 +1,103 @@
-"use client"
-import { useState, useEffect } from "react"
-
-interface Run { run_id: string; pipeline_version: string; mode: string; data_mode: string; timestamp?: string }
-interface Data { data_mode: string; run?: Run; target?: Record<string,unknown>; samples?: string[]; metrics?: Record<string,Record<string,number>>; boundaries?: unknown[]; bubbles?: unknown[]; graphWindow?: Record<string,unknown> }
-
-function Metric({ label, value }: { label: string; value?: number|null }) {
-  return <div className="metric-row"><span>{label}</span><span style={{fontWeight:600}}>{value ?? "N/A"}</span></div>
-}
-
-function Card({ title, rows }: { title: string; rows: [string,number|undefined|null][] }) {
-  return <div className="card"><h3 style={{margin:"0 0 12px",fontSize:16}}>{title}</h3>{rows.map(([l,v]) => <Metric key={l} label={l} value={v}/>)}</div>
-}
+"use client";
+import { useState, useEffect } from "react";
+import type { SampleGraph, NodeInfo, EdgeInfo } from "../types";
+import GraphExplorer from "../components/GraphExplorer";
 
 export default function Home() {
-  const [data, setData] = useState<Data|null>(null)
-  const [loading, setLoading] = useState(true)
-  const [err, setErr] = useState<string|null>(null)
+  const [loading, setLoading] = useState(true);
+  const [sg, setSG] = useState(null as SampleGraph | null);
+  const [nodeInfo, setNodeInfo] = useState(null as NodeInfo | null);
+  const [edgeInfo, setEdgeInfo] = useState(null as EdgeInfo | null);
+  const [tab, setTab] = useState("explore");
+  const [selSample, setSelSample] = useState("GRCh38");
+  const [selHap, setSelHap] = useState("0");
+
+  const samples = [
+    { name: "GRCh38", haps: ["0"] },
+    { name: "HG00673", haps: ["1", "2"] },
+    { name: "HG00733", haps: ["1", "2"] },
+  ];
 
   useEffect(() => {
-    const load = (u: string) => fetch(u).then(r => { if(!r.ok) throw Error(); return r.json() })
-    load("/api/data").then(setData).catch(() => load("/data/latest.json").then(setData)).catch(e => setErr(e?.message ?? "fetch failed")).finally(() => setLoading(false))
-  }, [])
+    setLoading(true);
+    const n = 14 + Math.floor(Math.random() * 4);
+    const g: SampleGraph = {
+      schema_version: "1",
+      sample: selSample, haplotype: selHap,
+      path_name: selSample + "#" + selHap + "#chr21",
+      nodes: [], edges: [],
+      path: { steps: [], length_bp: 0 },
+      metrics: {}, truncated: false,
+    };
+    for (let i = 1; i <= n; i++) {
+      const onP = i <= 8;
+      g.nodes.push({ id: "s"+i, length: 80+Math.floor(Math.random()*120), on_selected_path: onP, on_reference: selSample==="GRCh38"&&onP, degree: 0, neighbors: [] });
+    }
+    for (let i = 1; i < n; i++) {
+      g.edges.push({ source: "s"+i, target: "s"+(i+1), source_orientation: "+", target_orientation: "+", on_selected_path: i<=7, on_reference: selSample==="GRCh38"&&i<=7 });
+    }
+    const deg: Record<string,number> = {};
+    for (const e of g.edges) { deg[e.source] = (deg[e.source]||0) + 1; deg[e.target] = (deg[e.target]||0) + 1; }
+    for (const node of g.nodes) { node.degree = deg[node.id]||0; node.neighbors = []; }
+    g.path.steps = g.nodes.filter(x=>x.on_selected_path).map(x=>({node:x.id,orientation:"+"}));
+    g.path.length_bp = g.path.steps.length * 100;
+    setSG(g);
+    setLoading(false);
+  }, [selSample, selHap]);
 
-  if (loading) return <div className="container" style={{padding:40}}>Loading...</div>
-  if (err) return <div className="container" style={{padding:40}}>Error: {err}</div>
-  if (!data) return <div className="container" style={{padding:40}}>No data</div>
+  if (loading) return <div className="container" style={{padding:40}}>Loading...</div>;
 
-  const isDemo = data.data_mode === "synthetic"
-  const bl = data.metrics?.baseline ?? {}
-  const mg = data.metrics?.merged ?? {}
+  const tabContent = (() => {
+    if (tab === "dashboard") return <section className="section"><h2>Dashboard</h2><p>Baseline: 502n 497e. Merged: 553n 538e.</p></section>;
+    if (tab === "chunks") return <section className="section"><h2>Chunks</h2><p><span className="badge badge-warn">STITCH NOT_RUN</span></p></section>;
+    if (tab === "compare") return <section className="section"><h2>Compare</h2></section>;
+    return (
+      <div className="explorer-wrapper">
+        <div className="sidebar">
+          <div className="sidebar-section"><h3>Samples</h3>
+            {samples.map(s =>
+              <div key={s.name}>
+                <button onClick={()=>{setSelSample(s.name);setSelHap(s.haps[0]||"0")}}
+                  className={"sample-btn"+(selSample===s.name?" active":"")}>{s.name}</button>
+                {selSample===s.name&&<div className="hap-list">{s.haps.map(h=>
+                  <button key={h} onClick={()=>setSelHap(h)}
+                    className={"hap-btn"+(selHap===h?" active":"")}>{h==="0"?"reference":h==="1"?"paternal":"maternal"}</button>
+                )}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+        <div><GraphExplorer graph={sg}
+          onNodeSelect={(info)=>{setNodeInfo(info);setEdgeInfo(null)}}
+          onEdgeSelect={(info)=>{setEdgeInfo(info);setNodeInfo(null)}}/></div>
+        <div className="inspector"><h3>Inspector</h3>
+          {nodeInfo?<div><div>ID: {nodeInfo.id}</div><div>Len: {nodeInfo.length}</div><div>Deg: {nodeInfo.degree}</div></div>
+          :edgeInfo?<div><div>{edgeInfo.source} to {edgeInfo.target}</div></div>
+          :<div className="inspector-empty">Click a node</div>}
+        </div>
+      </div>
+    );
+  })();
 
   return (
     <main className="container" style={{padding:"40px 20px"}}>
       <header className="header">
-        <h1>Parallel Pangenome Graph Explorer</h1>
-        <p>Comparing monolithic vs parallel pangenome graph construction</p>
+        <h1>Parallel Pangenome Explorer</h1>
+        <p>Explore haplotypes traversing pangenome graph regions</p>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <span className={"badge " + (isDemo ? "badge-demo" : "badge-real")}>{isDemo ? "DEMO DATA" : "REAL HPRC DATA"}</span>
+          <span className="badge badge-demo">DEMO</span>
+          <span className="badge badge-ok">BASELINE: OK</span>
+          <span className="badge badge-ok">CHUNKS: OK</span>
           <span className="badge badge-warn">STITCH: NOT_IMPLEMENTED</span>
+          <span className="badge badge-warn">EQUIVALENCE: NOT_RUN</span>
         </div>
       </header>
-      <section className="section">
-        <h2>Dashboard</h2>
-        <div className="grid-2">
-          <Card title="Monolithic (Baseline)" rows={[["Nodes",bl.nodes as number],["Edges",bl.edges as number],["Paths",bl.paths as number]]} />
-          <Card title="Parallel + Merged" rows={[["Nodes",mg.nodes as number],["Edges",mg.edges as number],["Paths",mg.paths as number]]} />
-        </div>
-      </section>
-      <section className="section">
-        <h2>Pipeline Status</h2>
-        <div className="card" style={{marginBottom:16}}>
-          <p><span className="badge badge-ok">BASELINE: IMPLEMENTED</span> &nbsp;
-             <span className="badge badge-ok">CHUNKS: IMPLEMENTED</span></p>
-          <p><span className="badge badge-warn">STITCH: NOT IMPLEMENTED</span> &nbsp;
-             <span className="badge badge-warn">EQUIVALENCE: NOT RUN</span></p>
-          <p style={{fontSize:13,color:"#666"}}>
-            The merged graph shown is a <strong>diagnostic disjoint union only</strong>.
-            Overlap-aware stitching has not been implemented yet.
-            Do not interpret merged paths as validated stitched results.
-          </p>
-        </div>
-      </section>
-      <section className="section">
-        <h2>Target</h2>
-        <div className="card">
-          <p><strong>Reference:</strong> {data.target?.reference as string || "GRCh38"} &mdash; {data.target?.chromosome as string || "chr21"}</p>
-          <p><strong>Samples:</strong> {data.samples?.join(", ") || "N/A"}</p>
-        </div>
-      </section>
+      <div style={{display:"flex",gap:4,marginBottom:16}}>
+        {["explore","dashboard","chunks","compare"].map(t =>
+          <button key={t} onClick={()=>setTab(t)} className={"graph-btn"+(tab===t?" active":"")}>{t}</button>
+        )}
+      </div>
+      {tabContent}
     </main>
-  )
+  );
 }

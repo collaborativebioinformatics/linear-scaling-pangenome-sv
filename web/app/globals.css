@@ -94,5 +94,256 @@ pre, code {
   border-bottom: 2px solid #0066cc;
   padding-bottom: 8px;
 }
-.badge-warn { background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius:4px; padding:2px 8px; font-size:12px; font-weight:600; }
-.badge-ok { background: #d4edda; color: #155724; border: 1px solid #28a745; border-radius:4px; padding:2px 8px; font-size:12px; font-weight:600; }
+.graph-canvas {
+  width: 100%;
+  height: 500px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.graph-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.graph-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.graph-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.graph-search-input {
+  padding: 4px 8px;
+  font-size: 13px;
+  width: 150px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  outline: none;
+}
+
+.graph-search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.graph-truncated {
+  font-size: 12px;
+  color: #f59e0b;
+  padding: 4px 0;
+}
+
+.empty-graph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 500px;
+  color: #94a3b8;
+  font-size: 18px;
+  background: #f8fafc;
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+}
+
+/* Explorer Layout */
+.explorer-wrapper {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: 16px;
+  min-height: 500px;
+}
+
+@media (max-width: 1000px) {
+  .explorer-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.sidebar h3 {
+  font-size: 14px;
+  color: #334155;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #3b82f6;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sample-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sample-btn:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+}
+
+.sample-btn.active {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.hap-list {
+  padding-left: 12px;
+  margin-top: 4px;
+}
+
+.hap-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.hap-btn:hover {
+  background: #f1f5f9;
+}
+
+.hap-btn.active {
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.inspector {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.inspector h3 {
+  font-size: 14px;
+  color: #334155;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #3b82f6;
+}
+
+.inspector-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.inspector-label {
+  color: #64748b;
+}
+
+.inspector-value {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.inspector-empty {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 40px 0;
+}
+
+.graph-selector {
+  margin-bottom: 16px;
+}
+
+.graph-mode-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.graph-mode-btn:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+}
+
+.graph-mode-btn.active {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.graph-mode-btn .badge {
+  float: right;
+  font-size: 10px;
+}
+
+.sidebar-note {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* Compare mode */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.compare-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.compare-card h4 {
+  font-size: 13px;
+  margin: 0 0 8px;
+  color: #334155;
+}

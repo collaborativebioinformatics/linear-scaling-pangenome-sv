@@ -5,7 +5,7 @@
     "pipeline_version": "0.1.0",
     "mode": "demo",
     "data_mode": "synthetic",
-    "timestamp": "2026-08-26T12:36:36.425180"
+    "timestamp": "2026-08-27T13:54:47.501338"
   },
   "target": {
     "reference": "GRCh38",
@@ -23,8 +23,8 @@
       "edges": 497
     },
     "merged": {
-      "nodes": 599,
-      "edges": 584
+      "nodes": 553,
+      "edges": 538
     }
   },
   "boundaries": [],
