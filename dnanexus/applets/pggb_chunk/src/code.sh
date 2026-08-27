@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pggb_chunk applet — runs PGGB via Docker inside a DNAnexus job.
-# All PGGB parameters read from config/pipeline.yaml (single source of truth).
+# All PGGB parameters read from pggb_config_json (single source of truth).
 # Image pinned to a specific digest — NEVER :latest.
 set -e -o pipefail
 
@@ -17,47 +17,47 @@ main() {
     # Read canonical PGGB config from pipeline.yaml
     THREADS=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 p = c['pggb']
 print(p.get('threads', 8))
     ")
     MIN_ID=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb']['params'].get('minimum_identity', 90))
     ")
     SEG_LEN=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb']['params'].get('segment_length', 5000))
     ")
     KMER=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb']['params'].get('kmer_length', 29))
     ")
     WINDOW=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb']['params'].get('window_size', 50000))
     ")
     MAP_PCT=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb']['params'].get('map_pct_id', 0))
     ")
     NOISE=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb']['params'].get('noise_filter', 0))
     ")
     PGGB_IMAGE=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('config/pipeline.yaml'))
+c = yaml.safe_load(open('pggb_config_json'))
 print(c['pggb'].get('image', 'ghcr.io/pangenome/pggb:latest'))
     ")
 
-    echo "PGGB params from config/pipeline.yaml:"
+    echo "PGGB params from pggb_config_json:"
     echo "  threads=$THREADS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"
     echo "  image=$PGGB_IMAGE"
     echo ""
@@ -66,7 +66,7 @@ print(c['pggb'].get('image', 'ghcr.io/pangenome/pggb:latest'))
     docker pull "$PGGB_IMAGE" 2>&1 | tail -1
 
     # Run PGGB
-    INSTANCE_TYPE="${DX_INSTANCE_TYPE:-unknown}"
+    INSTANCE_TYPE="${PGGB_INSTANCE_TYPE:-mem3_ssd1_v2_x16}"
     START_TS=$(date -u +"%Y-%m-%dT%H:%M:%S")
     START=$(date +%s)
     mkdir -p output
@@ -141,6 +141,7 @@ except: print('unknown')
   "stop_timestamp": "$END_TS",
   "final_gfa_size_bytes": $GFA_SIZE,
   "status": "completed",
+  "config_sha256": "$CONFIG_SHA256",
   "pggb_params": {
     "minimum_identity": $MIN_ID,
     "segment_length": $SEG_LEN,

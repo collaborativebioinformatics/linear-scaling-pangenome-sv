@@ -15,9 +15,9 @@ import shutil
 
 
 def main():
+    # Only compact JSON files go to web/public/data/ - no GFA
     sources = [
         ("results/benchmark/report.json", "web/public/data/latest.json"),
-        ("results/merge/merged.gfa", "web/public/data/merged.gfa"),
     ]
 
     for src, dst in sources:

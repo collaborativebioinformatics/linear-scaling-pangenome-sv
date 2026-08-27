@@ -12,10 +12,14 @@ def main():
         with open("work/manifests/hprc_selected.csv") as f:
             if len(f.read()) > 50:
                 dm = "real"
+    compare_paths="NOT_RUN"
+    variant_equivalence="NOT_RUN"
     report = dict(
         data_mode=dm, status="PARTIAL",
         merge_status="NOT_IMPLEMENTED",
-        message="Overlap-aware stitching not implemented. Disjoint union only.",
+        compare_paths=compare_paths,
+        variant_equivalence=variant_equivalence,
+        message="Stitch not implemented. Comparison and equivalence NOT_RUN.",
         generated_at=datetime.now().isoformat(), components={},
     )
     for pattern, key in [

@@ -58,11 +58,11 @@ print(c['pggb'].get('image', 'ghcr.io/pangenome/pggb:latest'))
     echo "PGGB params (identical to chunk):"
     echo "  threads=$THREADS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"
     echo "  image=$PGGB_IMAGE"
-    echo "  instance: ${DX_INSTANCE_TYPE:-unknown}"
+    echo "  instance: ${PGGB_INSTANCE_TYPE:-mem3_ssd1_v2_x16}"
 
     docker pull "$PGGB_IMAGE" 2>&1 | tail -1
 
-    INSTANCE_TYPE="${DX_INSTANCE_TYPE:-unknown}"
+    INSTANCE_TYPE="${PGGB_INSTANCE_TYPE:-mem3_ssd1_v2_x16}"
     START_TS=$(date -u +"%Y-%m-%dT%H:%M:%S")
     START=$(date +%s)
     mkdir -p output
@@ -131,6 +131,7 @@ except: print('unknown')
   "stop_timestamp": "$END_TS",
   "final_gfa_size_bytes": $GFA_SIZE,
   "status": "completed",
+  "config_sha256": "$CONFIG_SHA256",
   "pggb_params": {
     "minimum_identity": $MIN_ID,
     "segment_length": $SEG_LEN,

@@ -97,10 +97,13 @@ if [ -n "${DX_PROJECT_ID:-${DX_PROJECT_CONTEXT_ID:-}}" ]; then
         echo "  Uploading input FASTA..."
         FASTA_ID=$(dx upload "$INPUT_FASTA" --destination /data/prepared/chr21_multi.fa --brief 2>/dev/null || echo "")
         if [ -n "$FASTA_ID" ]; then
+            echo "  Generating canonical PGGB config..."
+            PGGB_CONFIG_JSON=$(python3 scripts/gen_pggb_config.py)
             echo "  Launching baseline PGGB job..."
             BASELINE_JOB=$(dx run "$BASELINE_APPLET" \
                 -i fasta="$FASTA_ID" \
-                --instance-type "${DX_INSTANCE_TYPE:-mem3_ssd1_v2_x16}" \
+                -i pggb_config_json="$PGGB_CONFIG_JSON" \
+                --instance-type "${PGGB_INSTANCE_TYPE:-mem3_ssd1_v2_x16}" \
                 --name "PGGB-Baseline" \
                 --destination /graphs/baseline/ \
                 --brief 2>/dev/null || echo "")
@@ -121,10 +124,10 @@ elif f: print(str(f))
         fi
     fi
 fi
-# Fallback: local execution if DNAnexus unavailable
+# No local fallback for scientific benchmark
 if [ ! -f "$BASELINE_GFA" ]; then
-    echo "  Local baseline execution..."
-    bash pipeline/baseline/build_baseline.sh "$INPUT_FASTA" "results/baseline"
+    echo "FATAL: Baseline PGGB failed."
+    exit 1
 fi
 [ ! -f "$BASELINE_GFA" ] && { echo "FATAL: no baseline graph"; exit 1; }
 echo "  Baseline: $BASELINE_GFA"
@@ -141,9 +144,10 @@ python3 pipeline/merge/merge_graphs.py
 MERGED_GFA="results/merge/merged.gfa"
 
 echo "[8/9] Benchmark"
+# While stitch NOT_IMPLEMENTED: baseline/chunk stats only
 python3 pipeline/benchmark/graph_stats.py
-python3 pipeline/benchmark/compare_paths.py
-bash pipeline/benchmark/benchmark_variants.sh 2>/dev/null || true
+echo "  compare_paths: NOT_RUN (stitch NOT_IMPLEMENTED)"
+echo "  variant_equivalence: NOT_RUN (stitch NOT_IMPLEMENTED)"
 python3 pipeline/benchmark/build_report.py
 
 echo "[9/9] Web JSON — compact bounded JSON only, no large GFA copy"

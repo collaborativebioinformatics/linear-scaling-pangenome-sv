@@ -1,10 +1,11 @@
 {
   "name": "pggb_baseline",
   "title": "PGGB Baseline Graph Builder (DNAnexus job)",
-  "description": "Builds the monolithic baseline PGGB graph on the same worker type as chunk jobs. Shares PGGB config with pggb_chunk via config/pipeline.yaml.",
+  "description": "Builds the monolithic baseline PGGB graph on the same worker type as chunk jobs. Shares PGGB config with pggb_chunk via pggb_config_json input.",
   "version": "0.1.0",
   "inputSpec": [
-    {"name": "fasta", "class": "file", "patterns": ["*.fa","*.fasta"], "help": "Multi-haplotype FASTA for baseline graph"}
+    {"name": "fasta", "class": "file", "patterns": ["*.fa","*.fasta"], "help": "Multi-haplotype FASTA for baseline graph"},
+    {"name": "pggb_config_json", "class": "string", "optional": false, "help": "Canonical PGGB configuration JSON (generated from config/pipeline.yaml)"}
   ],
   "outputSpec": [
     {"name": "gfa", "class": "file", "patterns": ["*.gfa"], "help": "Output GFA graph (final)"},
@@ -16,13 +17,11 @@
     "file": "src/code.sh",
     "version": "0",
     "distribution": "Ubuntu",
-    "release": "24.04"
+    "release": "24.04",
+    "systemRequirements": {"*": {"instanceType": "mem3_ssd1_v2_x16"}}
   },
   "access": {
     "network": ["*"]
-  },
-  "regionalOptions": {
-    "aws:us-east-1": {"instanceType": "mem3_ssd1_v2_x16"}
   },
   "timeoutPolicy": {"*": {"hours": 4}}
 }

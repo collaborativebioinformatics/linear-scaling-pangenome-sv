@@ -14,7 +14,7 @@
 set -euo pipefail
 
 PROJECT_ID="${DX_PROJECT_CONTEXT_ID:-${DX_PROJECT_ID:-}}"
-INSTANCE="${DX_INSTANCE_TYPE:-mem3_ssd1_v2_x16}"
+INSTANCE="${PGGB_INSTANCE_TYPE:-mem3_ssd1_v2_x16}"
 
 echo "=== Run Parallel Chunks on DNAnexus ==="
 if [ -z "$PROJECT_ID" ]; then
@@ -88,8 +88,10 @@ while IFS=$'\t' read -r CID _ _ _ _ _ _ _ _; do
 
     # Launch chunk job — MUST succeed
     echo "    Launching PGGB job..."
+    PGGB_CONFIG_JSON=$(python3 scripts/gen_pggb_config.py)
     JOB_ID=$(dx run "$APPLET_ID" \
         -i fasta="$FASTA_FILE_ID" \
+        -i pggb_config_json="$PGGB_CONFIG_JSON" \
         --instance-type "$INSTANCE" \
         --name "Chunk $CID" \
         --destination "/graphs/chunks/$CID" \
@@ -131,8 +133,9 @@ for i in "${!JOB_IDS[@]}"; do
     SUCCESSFUL_COUNT=$((SUCCESSFUL_COUNT + 1))
 
     # Extract timing from job describe
-    STARTED_TS=$(echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('started',''))" 2>/dev/null || echo "")
-    STOPPED_TS=$(echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('stopped',''))" 2>/dev/null || echo "")
+    STARTED_RUN_MS=$(echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('startedRunning',0))" 2>/dev/null || echo "0")
+    STOPPED_RUN_MS=$(echo "$JOB_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('stoppedRunning',0))" 2>/dev/null || echo "0")
+    JOB_WALL=$(( (STOPPED_RUN_MS - STARTED_RUN_MS) / 1000 ))
     echo "OK (start=$STARTED_TS, stop=$STOPPED_TS)"
 
     # Download GFA using job output reference (formal gfa output link)
@@ -148,9 +151,7 @@ try:
         else: print(str(f))
 except: pass
 " 2>/dev/null || echo "")
-    if [ -z "$GFA_FILE_ID" ]; then
-        GFA_FILE_ID=$(dx find data --path "/graphs/chunks/$CID" --name "*.gfa" --brief 2>/dev/null | head -1 || echo "")
-    fi
+
     if [ -n "$GFA_FILE_ID" ]; then
         dx download "$GFA_FILE_ID" -o "work/chunks/${CID}.gfa" 2>/dev/null || \
             echo "    WARNING: Could not download GFA for $CID"
@@ -158,7 +159,7 @@ except: pass
             echo "    -> work/chunks/${CID}.gfa ($(wc -c < "work/chunks/${CID}.gfa") bytes)"
         fi
     fi
-    JOB_METADATA+=("{\"job_id\":\"$JOB_ID\",\"chunk_id\":\"$CID\",\"started\":\"$STARTED_TS\",\"stopped\":\"$STOPPED_TS\",\"state\":\"$JOB_STATE\",\"instance_type\":\"$INSTANCE\"}")
+    JOB_METADATA+=("{\"job_id\":\"$JOB_ID\",\"chunk_id\":\"$CID\",\"started_running_ms\":$STARTED_RUN_MS,\"stopped_running_ms\":$STOPPED_RUN_MS,\"wall_seconds\":$JOB_WALL,\"state\":\"$JOB_STATE\",\"instance_type\":\"$INSTANCE\"}")
 done
 
 echo ""
@@ -184,14 +185,17 @@ ORCH_WALL=$((ORCH_END - ORCH_START))
 # === AGGREGATE TIMING ===
 if [ ${#JOB_METADATA[@]} -gt 0 ]; then
     TIMING_JSON=$(python3 -c "
-import json, sys, datetime
+import json, sys
 jobs = [json.loads(j) for j in sys.argv[1:]]
-starts = [j['started'] for j in jobs if j.get('started')]
-stops = [j['stopped'] for j in jobs if j.get('stopped')]
-min_s = min(datetime.datetime.fromisoformat(s.replace('Z','+00:00')).timestamp() for s in starts if s) if starts else 0
-max_e = max(datetime.datetime.fromisoformat(s.replace('Z','+00:00')).timestamp() for s in stops if s) if stops else 0
-parallel_wall = max_e - min_s if min_s and max_e else 0
-print(json.dumps({'graph_parallel_wall_seconds': round(parallel_wall, 1), 'sum_worker_seconds': round(sum(j.get('wall_seconds',0) for j in jobs), 1)}))
+starts = [j.get('started_running_ms',0) for j in jobs if j.get('started_running_ms')]
+stops = [j.get('stopped_running_ms',0) for j in jobs if j.get('stopped_running_ms')]
+if starts and stops:
+    min_s, max_e = min(starts), max(stops)
+    parallel_wall = (max_e - min_s) / 1000.0
+else:
+    parallel_wall = 0
+sum_worker = sum(j.get('wall_seconds',0) for j in jobs)
+print(json.dumps({'graph_parallel_wall_seconds': round(parallel_wall, 1), 'sum_worker_seconds': round(sum_worker, 1)}))
 " "${JOB_METADATA[@]}" 2>/dev/null || echo '{"graph_parallel_wall_seconds":0,"sum_worker_seconds":0}')
 else
     TIMING_JSON='{"graph_parallel_wall_seconds":0,"sum_worker_seconds":0}'

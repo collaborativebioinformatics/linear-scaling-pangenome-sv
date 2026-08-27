@@ -11,8 +11,19 @@ from typing import Dict, List, Optional, Set
 TAB = chr(9)
 NL = chr(10)
 
+"""
+Tag-aware GFA tag parsing/emission.
+
+Each stored tag keeps the full TYPE:TAG format so that:
+  LN:i:100  -> stored as "LN:i:100" and emitted as "LN:i:100"
+  SN:Z:test -> stored as "SN:Z:test" and emitted as "SN:Z:test"
+"""
 def _parse_tags(fields, start=3):
     return {f.split(":")[0]: f for f in fields[start:] if ":" in f}
+
+def _emit_tags(tags):
+    """Emit tags preserving original type specifiers."""
+    return [v for v in tags.values()]
 
 def _split_orient(seg_str):
     if seg_str and seg_str[-1] in ("+", "-"): return seg_str[:-1], seg_str[-1]
@@ -57,7 +68,7 @@ class Segment:
     tags: Dict[str, str] = field(default_factory=dict)
     def __post_init__(self):
         if self.length == 0: self.length = len(self.sequence)
-    def to_gfa(self): seq = self.sequence if self.sequence else "*"; parts = ["S",self.name,seq] + [f"{k}:Z:{v}" for k,v in self.tags.items()]; return TAB.join(parts)
+    def to_gfa(self): seq = self.sequence if self.sequence else "*"; parts = ["S",self.name,seq] + _emit_tags(self.tags); return TAB.join(parts)
     @classmethod
     def parse(cls, fields): return cls(name=fields[1], sequence=fields[2] if fields[2]!="*" else "", tags=_parse_tags(fields,3))
     @property
@@ -67,14 +78,14 @@ class Segment:
 class Link:
     from_node: str; from_orient: str; to_node: str; to_orient: str
     overlap: str = "*"; tags: Dict[str, str] = field(default_factory=dict)
-    def to_gfa(self): parts = ["L",self.from_node,self.from_orient,self.to_node,self.to_orient,self.overlap] + [f"{k}:Z:{v}" for k,v in self.tags.items()]; return TAB.join(parts)
+    def to_gfa(self): parts = ["L",self.from_node,self.from_orient,self.to_node,self.to_orient,self.overlap] + _emit_tags(self.tags); return TAB.join(parts)
     @classmethod
     def parse(cls, fields): return cls(from_node=fields[1], from_orient=fields[2], to_node=fields[3], to_orient=fields[4], overlap=fields[5] if len(fields)>5 else "*", tags=_parse_tags(fields,6))
 
 @dataclass
 class Path:
     path_name: str; segment_names: List[str]; overlaps: List[str] = field(default_factory=list); tags: Dict[str, str] = field(default_factory=dict)
-    def to_gfa(self): seg_str=",".join(self.segment_names); ov_str=",".join(self.overlaps) if self.overlaps else "*"; parts=["P",self.path_name,seg_str,ov_str] + [f"{k}:Z:{v}" for k,v in self.tags.items()]; return TAB.join(parts)
+    def to_gfa(self): seg_str=",".join(self.segment_names); ov_str=",".join(self.overlaps) if self.overlaps else "*"; parts=["P",self.path_name,seg_str,ov_str] + _emit_tags(self.tags); return TAB.join(parts)
     @classmethod
     def parse(cls, fields): sr = fields[2] if fields[2]!="*" else ""; ov = fields[3] if len(fields)>3 and fields[3]!="*" else ""; return cls(path_name=fields[1], segment_names=sr.split(",") if sr else [], overlaps=ov.split(",") if ov else [], tags=_parse_tags(fields,4))
 
@@ -83,7 +94,7 @@ class Walk:
     """Official GFA 1.1 W-line: W SampleId HapIndex SeqId SeqStart SeqEnd Walk (no step_count)"""
     sample: str; haplotype: str; contig: str; start: int; end: int; path: List[str]
     tags: Dict[str, str] = field(default_factory=dict)
-    def to_gfa(self): ws = _segments_to_walk(self.path); parts = ["W",self.sample,self.haplotype,self.contig,str(self.start),str(self.end),ws] + [f"{k}:Z:{v}" for k,v in self.tags.items()]; return TAB.join(parts)
+    def to_gfa(self): ws = _segments_to_walk(self.path); parts = ["W",self.sample,self.haplotype,self.contig,str(self.start),str(self.end),ws] + _emit_tags(self.tags); return TAB.join(parts)
     @classmethod
     def parse(cls, fields): wr = fields[6] if len(fields)>6 and fields[6]!="*" else ""; return cls(sample=fields[1], haplotype=fields[2], contig=fields[3], start=int(fields[4]), end=int(fields[5]), path=_walk_to_segments(wr), tags=_parse_tags(fields,7))
 

@@ -11,10 +11,12 @@ jobs:
       - run: pip install pyyaml pytest
       - name: Python compile check
         run: |
+          ERR=0
           for f in $(find . -name '*.py' -not -path './.git/*' -not -path '*/node_modules/*' -not -path '*/.venv/*' 2>/dev/null); do
-            python3 -m py_compile "$f" 2>/dev/null || echo "SKIP $f (non-compilable)"
+            python3 -m py_compile "$f" || { echo "FAIL: $f"; ERR=1; }
           done
-          echo "py_compile done"
+          [ "$ERR" -eq 0 ] || exit 1
+          echo "All py_compile OK"
       - name: JSON validate
         run: |
           for f in $(find . -name 'dxapp.json' -not -path './.git/*' 2>/dev/null); do

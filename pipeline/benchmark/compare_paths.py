@@ -23,7 +23,8 @@ def spell_path_sequence(g, path_name):
                 s = g.segments[name].sequence
                 seq.append(s if orient == "+" else _revcomp(s))
     for w in g.walks:
-        if w.sample == path_name or f"{w.sample}#{w.haplotype}" == path_name:
+        wk = f"WALK:{w.sample}#{w.haplotype}#{w.contig}"
+        if path_name == wk or path_name == w.sample or path_name == f"{w.sample}#{w.haplotype}":
             for step in w.path:
                 name, orient = (step[:-1], step[-1]) if step[-1] in "+-" else (step, "+")
                 if name in g.segments:
@@ -67,7 +68,9 @@ def main():
 
         # Base-level identity where both sequences exist
         if bs and ms:
-            diffs = sum(1 for a, b in zip(bs, ms) if a != b)
+            mismatches = sum(1 for a, b in zip(bs, ms) if a != b)
+            tail_diff = abs(blen - mlen)
+            diffs = mismatches + tail_diff
             max_len = max(blen, mlen)
             identity = f"{(max_len - diffs) / max_len:.6f}" if max_len > 0 else "1.0"
         else:
