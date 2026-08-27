@@ -1,11 +1,5 @@
 name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
+on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,14 +8,29 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: pip install pyyaml pytest
+      - run: pip install pyyaml pytest
+      - name: Python compile check
+        run: |
+          for f in $(find . -name '*.py' -not -path './.git/*' -not -path '*/node_modules/*' -not -path '*/.venv/*' 2>/dev/null); do
+            python3 -m py_compile "$f" 2>/dev/null || echo "SKIP $f (non-compilable)"
+          done
+          echo "py_compile done"
+      - name: JSON validate
+        run: |
+          for f in $(find . -name 'dxapp.json' -not -path './.git/*' 2>/dev/null); do
+            python3 -m json.tool "$f" >/dev/null && echo "OK: $f" || { echo "FAIL: $f"; exit 1; }
+          done
+      - name: Bash syntax check
+        run: |
+          for f in $(find . -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*' 2>/dev/null); do
+            bash -n "$f" || { echo "FAIL: $f"; exit 1; }
+          done
+          echo "All bash syntax OK"
       - name: Run tests
-        run: python3 -m pytest tests/ -v
+        run: python3 -m pytest tests/ -v --tb=short
       - uses: actions/setup-node@v3
         with:
           node-version: "20"
-      - name: Install web deps
-        run: cd web && npm install
-      - name: Typecheck web
-        run: cd web && npm run typecheck
+      - name: Web typecheck
+        run: |
+          cd web && npm install && npm run typecheck

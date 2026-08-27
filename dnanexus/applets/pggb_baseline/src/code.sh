@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
-# pggb_chunk applet — runs PGGB via Docker inside a DNAnexus job.
-# All PGGB parameters read from config/pipeline.yaml (single source of truth).
-# Image pinned to a specific digest — NEVER :latest.
+# pggb_baseline applet — runs PGGB via Docker inside a DNAnexus job.
+# Shares EXACT PGGB parameters with pggb_chunk via config/pipeline.yaml.
+# Same instance type, same threads, same image.
 set -e -o pipefail
 
 main() {
-    echo "=== PGGB Chunk Graph Builder ==="
+    echo "=== PGGB Baseline Graph Builder (DNAnexus) ==="
     echo "Input FASTA: $fasta_name"
     echo ""
 
-    # Download input file
     dx download "$fasta" -o input.fa
     NUM_PATHS=$(grep -c '^>' input.fa)
     echo "Paths in input: $NUM_PATHS"
 
-    # Read canonical PGGB config from pipeline.yaml
+    # Read canonical PGGB config from pipeline.yaml — IDENTICAL to pggb_chunk
     THREADS=$(python3 -c "
 import yaml
 c = yaml.safe_load(open('config/pipeline.yaml'))
-p = c['pggb']
-print(p.get('threads', 8))
+print(c['pggb'].get('threads', 8))
     ")
     MIN_ID=$(python3 -c "
 import yaml
@@ -57,15 +55,13 @@ c = yaml.safe_load(open('config/pipeline.yaml'))
 print(c['pggb'].get('image', 'ghcr.io/pangenome/pggb:latest'))
     ")
 
-    echo "PGGB params from config/pipeline.yaml:"
+    echo "PGGB params (identical to chunk):"
     echo "  threads=$THREADS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"
     echo "  image=$PGGB_IMAGE"
-    echo ""
+    echo "  instance: ${DX_INSTANCE_TYPE:-unknown}"
 
-    # Pull/ensure PGGB Docker image
     docker pull "$PGGB_IMAGE" 2>&1 | tail -1
 
-    # Run PGGB
     INSTANCE_TYPE="${DX_INSTANCE_TYPE:-unknown}"
     START_TS=$(date -u +"%Y-%m-%dT%H:%M:%S")
     START=$(date +%s)
@@ -96,28 +92,23 @@ print(c['pggb'].get('image', 'ghcr.io/pangenome/pggb:latest'))
     # Locate exactly one *final.gfa (FATAL if zero or >1)
     GFA_FILE=$(find output -name "*final.gfa" -type f | head -1)
     if [ -z "$GFA_FILE" ]; then
-        # PGGB may put it in a subdirectory
         GFA_FILE=$(find output -name "*final.gfa" -type f 2>/dev/null | head -1)
     fi
     if [ -z "$GFA_FILE" ]; then
-        echo "FATAL: No *final.gfa produced by PGGB"
+        echo "FATAL: No *final.gfa produced"
         ls -la output/ 2>/dev/null || true
-        find output -name "*.gfa" -type f 2>/dev/null || true
         exit 1
     fi
-    # Check for duplicates
     GFA_COUNT=$(find output -name "*final.gfa" -type f 2>/dev/null | wc -l)
     if [ "$GFA_COUNT" -gt 1 ]; then
-        echo "FATAL: Multiple *final.gfa found ($GFA_COUNT)"
-        find output -name "*final.gfa" -type f 2>/dev/null
+        echo "FATAL: Multiple *final.gfa found"
         exit 1
     fi
 
-    cp "$GFA_FILE" merged.gfa
-    GFA_SIZE=$(wc -c < merged.gfa)
-    echo "  Final GFA: merged.gfa ($GFA_SIZE bytes)"
+    cp "$GFA_FILE" baseline.gfa
+    GFA_SIZE=$(wc -c < baseline.gfa)
+    echo "  Final GFA: baseline.gfa ($GFA_SIZE bytes)"
 
-    # Get image digest
     IMAGE_DIGEST=$(docker inspect "$PGGB_IMAGE" 2>/dev/null | python3 -c "
 import sys, json
 try:
@@ -127,10 +118,9 @@ try:
 except: print('unknown')
 " 2>/dev/null || echo "unknown")
 
-    # Write proper metadata
     cat > metadata.json << JSONEOF
 {
-  "method": "pggb_chunk",
+  "method": "pggb_baseline",
   "container": "$PGGB_IMAGE",
   "image_digest": "$IMAGE_DIGEST",
   "num_paths": $NUM_PATHS,
@@ -148,13 +138,11 @@ except: print('unknown')
     "window_size": $WINDOW,
     "map_pct_id": $MAP_PCT,
     "noise_filter": $NOISE
-  },
-  "full_command": "pggb -i /data/input.fa -o /data/output -t $THREADS -n $NUM_PATHS -p $MIN_ID -s $SEG_LEN -k $KMER -w $WINDOW -j $MAP_PCT -e $NOISE"
+  }
 }
 JSONEOF
 
-    # Upload results via job output links
-    GFA_ID=$(dx upload merged.gfa --brief)
+    GFA_ID=$(dx upload baseline.gfa --brief)
     LOG_ID=$(dx upload pggb.log --brief)
     META_ID=$(dx upload metadata.json --brief)
 

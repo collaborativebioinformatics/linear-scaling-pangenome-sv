@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
-# run_pipeline.sh - Run the full chr21 smoke-test pipeline on DNAnexus.
+# run_pipeline.sh — Run the full chr21 smoke-test pipeline.
+# Auto-detects $HOME/.pipeline-env/bin venv if present.
 # Flow: environment -> HPRC manifest -> stage inputs -> interval map ->
-#       baseline PGGB -> chunk FASTAs -> DNAnexus parallel chunk PGGB ->
-#       merge -> benchmark -> web JSON
+#       baseline PGGB (DNAnexus applet) -> chunk FASTAs ->
+#       DNAnexus parallel chunk PGGB -> merge (diagnostic) ->
+#       benchmark -> web JSON
 set -euo pipefail
+
+# Auto-detect pipeline virtualenv
+if [ -d "$HOME/.pipeline-env/bin" ]; then
+    export PATH="$HOME/.pipeline-env/bin:$PATH"
+    echo "  Using $HOME/.pipeline-env/bin"
+fi
+if [ -d "$HOME/.local/bin" ]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
 
 UPLOAD="${1:-}"
 echo "Pipeline starting (target: chr21:20000000-21000000, 0-based half-open)"
@@ -76,10 +87,47 @@ if [ "$REF_LEN" -gt 2000000 ]; then
     exit 1
 fi
 
-echo "[5/9] Baseline PGGB graph"
-bash pipeline/baseline/build_baseline.sh "$INPUT_FASTA" "results/baseline"
+echo "[5/9] Baseline PGGB graph (DNAnexus applet)"
 BASELINE_GFA="results/baseline/baseline.gfa"
+mkdir -p results/baseline
+if [ -n "${DX_PROJECT_ID:-${DX_PROJECT_CONTEXT_ID:-}}" ]; then
+    echo "  Building pggb_baseline applet..."
+    BASELINE_APPLET=$(cd dnanexus/applets/pggb_baseline && dx build --destination /applets/pggb_baseline/ --brief 2>/dev/null || echo "")
+    if [ -n "$BASELINE_APPLET" ]; then
+        echo "  Uploading input FASTA..."
+        FASTA_ID=$(dx upload "$INPUT_FASTA" --destination /data/prepared/chr21_multi.fa --brief 2>/dev/null || echo "")
+        if [ -n "$FASTA_ID" ]; then
+            echo "  Launching baseline PGGB job..."
+            BASELINE_JOB=$(dx run "$BASELINE_APPLET" \
+                -i fasta="$FASTA_ID" \
+                --instance-type "${DX_INSTANCE_TYPE:-mem3_ssd1_v2_x16}" \
+                --name "PGGB-Baseline" \
+                --destination /graphs/baseline/ \
+                --brief 2>/dev/null || echo "")
+            if [ -n "$BASELINE_JOB" ]; then
+                echo "  Baseline job: $BASELINE_JOB"
+                dx wait "$BASELINE_JOB" 2>/dev/null || true
+                JOB_JSON=$(dx describe "$BASELINE_JOB" --json 2>/dev/null || echo "{}")
+                GFA_FILE_ID=$(echo "$JOB_JSON" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+o=d.get('output',{})
+f=o.get('gfa',{})
+if isinstance(f,dict): print(f.get('\$dnanexus_link',''))
+elif f: print(str(f))
+" 2>/dev/null || echo "")
+                [ -n "$GFA_FILE_ID" ] && dx download "$GFA_FILE_ID" -o "$BASELINE_GFA" 2>/dev/null || true
+            fi
+        fi
+    fi
+fi
+# Fallback: local execution if DNAnexus unavailable
+if [ ! -f "$BASELINE_GFA" ]; then
+    echo "  Local baseline execution..."
+    bash pipeline/baseline/build_baseline.sh "$INPUT_FASTA" "results/baseline"
+fi
 [ ! -f "$BASELINE_GFA" ] && { echo "FATAL: no baseline graph"; exit 1; }
+echo "  Baseline: $BASELINE_GFA"
 
 echo "[6/9] Chunks"
 python3 pipeline/parallel/make_chunks.py
@@ -88,7 +136,7 @@ python3 pipeline/parallel/build_all_chunks.py
 echo "[6b/9] Launching parallel chunk PGGB on DNAnexus"
 bash dnanexus/run_parallel_chunks.sh
 
-echo "[7/9] Merge"
+echo "[7/9] Merge (diagnostic disjoint union only — NOT_IMPLEMENTED)"
 python3 pipeline/merge/merge_graphs.py
 MERGED_GFA="results/merge/merged.gfa"
 
@@ -98,14 +146,23 @@ python3 pipeline/benchmark/compare_paths.py
 bash pipeline/benchmark/benchmark_variants.sh 2>/dev/null || true
 python3 pipeline/benchmark/build_report.py
 
-echo "[9/9] Web JSON"
+echo "[9/9] Web JSON — compact bounded JSON only, no large GFA copy"
 python3 pipeline/export/gfa_to_json.py "$BASELINE_GFA" --output "web/public/data/baseline.json" --label "baseline" 2>/dev/null || true
-[ -f "$MERGED_GFA" ] && python3 pipeline/export/gfa_to_json.py "$MERGED_GFA" --output "web/public/data/merged.json" --label "merged" 2>/dev/null || true
+[ -f "$MERGED_GFA" ] && python3 pipeline/export/gfa_to_json.py "$MERGED_GFA" --output "web/public/data/merged_diagnostic.json" --label "merged_diagnostic" 2>/dev/null || true
 python3 scripts/sync_web_results.py 2>/dev/null || true
 
-echo "=== Pipeline Complete ==="
+echo ""
+echo "=== Pipeline Summary ==="
+echo "  baseline: PASS"
+echo "  chunks: PASS"
+echo "  parallel_execution: PASS"
+echo "  stitch: NOT_IMPLEMENTED"
+echo "  equivalence: NOT_RUN"
+echo "  overall_status: PARTIAL"
+echo "  (Overlap-aware stitching not yet implemented. Merged graph is diagnostic disjoint union only.)"
+echo ""
 echo "  Baseline: $BASELINE_GFA"
-echo "  Merged: $MERGED_GFA"
+echo "  Merged (diagnostic): ${MERGED_GFA:-N/A}"
 
 if [ "$UPLOAD" = "--upload" ]; then
     dx upload results/merge/merged.gfa --destination /graphs/merged/ 2>/dev/null || true

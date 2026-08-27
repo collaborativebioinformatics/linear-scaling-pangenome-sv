@@ -69,7 +69,7 @@ def _repath_walks(merged, g, cid, node_map):
             np.append(node_map.get(f"{cid}:{name}", name) + orient)
         merged.walks.append(Walk(
             w.sample, w.haplotype, w.contig, w.start, w.end,
-            w.step_count, np, dict(w.tags)
+            np, dict(w.tags)
         ))
 
 

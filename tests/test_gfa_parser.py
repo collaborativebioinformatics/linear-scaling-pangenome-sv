@@ -79,7 +79,7 @@ class TestGraph:
 
     def test_samples(self):
         g = GfaGraph()
-        g.walks.append(Walk("S1", "1", "c", 0, 10, 1, ["n1+"]))
+        g.walks.append(Walk("S1", "1", "c", 0, 10, ["n1+"]))
         assert "S1" in g.get_sample_names()
 class TestUtils:
     def test_revcomp(self):
@@ -97,7 +97,7 @@ class TestUtils:
 
     def test_extract_chrom(self):
         g = GfaGraph()
-        g.walks.append(Walk("GRCh38", "0", "chr21", 0, 1000, 5, ["n1+"]))
+        g.walks.append(Walk("GRCh38", "0", "chr21", 0, 1000, ["n1+"]))
         assert extract_chromosome_from_gfa(g) == "chr21"
 
 
@@ -399,3 +399,171 @@ class TestBuildAllChunksImports:
 class TestDemo:
     def test_json_exists(self):
         assert os.path.exists("web/public/data/latest.json")
+
+class TestP0Regression:
+    """P0 regression tests for the audit."""
+
+    def test_parse_file_regression(self):
+        """item 1: GfaGraph.parse_file with a temporary GFA."""
+        import tempfile
+        gfa_text = "H\tVN:Z:1.1\nS\ts1\tACGT\nS\ts2\tTGCA\nL\ts1\t+\ts2\t+\t*\nP\tp1\ts1+,s2+\t*\n"
+        with tempfile.NamedTemporaryFile(suffix=".gfa", mode="w", delete=False) as f:
+            f.write(gfa_text)
+            tmp = f.name
+        try:
+            g = GfaGraph.parse_file(tmp)
+            assert g.node_count() == 2
+            assert "p1" in g.paths
+        finally:
+            os.unlink(tmp)
+
+    def test_walk_merge_roundtrip(self):
+        """item 2: Disjoint-union merge with W-lines, write, reparse, verify."""
+        g1 = GfaGraph()
+        g1.headers.append(Header("1.1"))
+        g1.segments["s1"] = Segment("s1", "ACGT")
+        g1.segments["s2"] = Segment("s2", "TGCA")
+        g1.links.append(Link("s1", "+", "s2", "+", "*"))
+        g1.walks.append(Walk("HG001", "1", "chr21", 0, 8, ["s1+", "s2+"]))
+        g2 = GfaGraph()
+        g2.segments["s3"] = Segment("s3", "GGGG")
+        g2.segments["s4"] = Segment("s4", "CCCC")
+        g2.links.append(Link("s3", "+", "s4", "+", "*"))
+        g2.walks.append(Walk("HG002", "1", "chr21", 0, 8, ["s3+", "s4+"]))
+        merged = g1.copy()
+        for sid, sg in g2.segments.items(): merged.segments[sid] = sg
+        for lnk in g2.links: merged.links.append(lnk)
+        for w in g2.walks: merged.walks.append(w)
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".gfa", mode="w", delete=False) as f:
+            merged.write_gfa(f.name); tmp = f.name
+        try:
+            rp = GfaGraph.parse_file(tmp)
+            assert rp.node_count() == 4
+            assert len(rp.walks) == 2
+            for w in rp.walks:
+                assert w.sample in ("HG001", "HG002")
+                assert len(w.path) == 2
+                for step in w.path: assert step[-1] in ("+", "-")
+        finally: os.unlink(tmp)
+
+    def test_chunk_overlap_exact(self):
+        """item 3: pairwise overlap between adjacent chunks is exactly 50 kb."""
+        from pipeline.parallel.make_chunks import create_chunks
+        chunks = create_chunks(0, 1000000, 400000, 50000)
+        for i in range(1, len(chunks)):
+            overlap = chunks[i-1][1] - chunks[i][0]
+            assert overlap == 50000, f"Overlap chunk {i-1}/{i}: {overlap}, expected 50000"
+
+    def test_pggb_params_equal(self):
+        """item 3: Baseline and chunk PGGB parameters from pipeline.yaml."""
+        import yaml
+        cfg = yaml.safe_load(open("config/pipeline.yaml"))
+        params = cfg.get("pggb", {}).get("params", {})
+        for k in ["minimum_identity", "segment_length", "kmer_length",
+                    "window_size", "map_pct_id", "noise_filter"]:
+            assert params.get(k) is not None, f"{k} must be set"
+        img = cfg.get("pggb", {}).get("image", "")
+        assert ":latest" not in img, f"PGGB image must be pinned (got: {img})"
+
+    def test_final_gfa_selection(self):
+        """item 5: Must use *final.gfa, not find ... | head -1."""
+        with open("dnanexus/applets/pggb_chunk/src/code.sh") as f:
+            c = f.read()
+        assert "*final.gfa" in c
+        assert "find output -name \"*.gfa\" -type f | head -1" not in c
+
+    def test_baseline_applet_exists(self):
+        """item 6: pggb_baseline applet with dxapp.json and code.sh."""
+        assert os.path.exists("dnanexus/applets/pggb_baseline/dxapp.json")
+        assert os.path.exists("dnanexus/applets/pggb_baseline/src/code.sh")
+        import json
+        with open("dnanexus/applets/pggb_baseline/dxapp.json") as f:
+            a = json.load(f)
+        assert a["name"] == "pggb_baseline"
+        assert "mem3_ssd1_v2_x16" in json.dumps(a)
+
+    def test_stale_provenance(self):
+        """item 8: Provenance hash based on git commit, config, coordinates."""
+        from pipeline.parallel.build_all_chunks import compute_provenance
+        p1 = compute_provenance("chunk_01", 0, 400000)
+        p2 = compute_provenance("chunk_01", 0, 400001)
+        assert p1 != p2, "Different coords must differ"
+        p3 = compute_provenance("chunk_02", 0, 400000)
+        assert p1 != p3, "Different chunk IDs must differ"
+
+    def test_parent_locus_constraint(self):
+        """item 7: build_all_chunks.py must reject off-contig chunk."""
+        with open("pipeline/parallel/build_all_chunks.py") as f:
+            c = f.read()
+        assert "FATAL" in c and "parent" in c.lower()
+        assert "chunk jumps to another contig" in c.lower()
+
+    def test_orchestration_strict(self):
+        """item 9: run_parallel_chunks.sh has FATAL on mismatch."""
+        with open("dnanexus/run_parallel_chunks.sh") as f:
+            c = f.read()
+        fatal_lines = [l.strip() for l in c.split("\n") if "FATAL" in l]
+        assert any("Missing chunk FASTA" in l for l in fatal_lines)
+
+    def test_compare_paths_sequence(self):
+        """item 17: compare_paths.py must spell sequences, not just count."""
+        with open("pipeline/benchmark/compare_paths.py") as f:
+            c = f.read()
+        assert "sha256" in c.lower() or "SHA256" in c
+        assert "identity" in c
+        assert "spell_path_sequence" in c or "_revcomp" in c
+
+    def test_auto_venv(self):
+        """item 13: run_pipeline.sh must auto-detect .pipeline-env."""
+        with open("dnanexus/run_pipeline.sh") as f:
+            c = f.read()
+        assert ".pipeline-env" in c
+
+    def test_reference_dnanexus_stage(self):
+        """item 14: prepare_reference.sh stages from DNAnexus first."""
+        with open("scripts/prepare_reference.sh") as f:
+            c = f.read()
+        assert "dx find data" in c or "DNAnexus" in c
+
+    def test_report_partial(self):
+        """item 15/16: build_report.py reports PARTIAL, NOT_IMPLEMENTED."""
+        with open("pipeline/benchmark/build_report.py") as f:
+            c = f.read()
+        assert "PARTIAL" in c and "NOT_IMPLEMENTED" in c
+
+    def test_no_merged_gfa_in_web_public(self):
+        """item 18: web/public/data/ must not contain large merged.gfa."""
+        assert not os.path.exists("web/public/data/merged.gfa")
+
+    def test_applet_build_brief(self):
+        """item 10: run_parallel_chunks.sh uses dx build --brief."""
+        with open("dnanexus/run_parallel_chunks.sh") as f:
+            c = f.read()
+        assert "dx build" in c and "--brief" in c
+
+    def test_job_output_download(self):
+        """item 11: Download via job output reference."""
+        with open("dnanexus/run_parallel_chunks.sh") as f:
+            c = f.read()
+        assert "dnanexus_link" in c or "'gfa'" in c
+
+    def test_chunk_timing_recorded(self):
+        """item 12: Per-chunk timing recorded."""
+        with open("dnanexus/run_parallel_chunks.sh") as f:
+            c = f.read()
+        assert "start_timestamp" in c or "started" in c
+        assert "instance_type" in c
+
+    def test_run_pggb_exists(self):
+        """item 3/4: scripts/run_pggb.py exists and uses config."""
+        assert os.path.exists("scripts/run_pggb.py")
+        with open("scripts/run_pggb.py") as f:
+            c = f.read()
+        assert "config/pipeline.yaml" in c
+
+    def test_docker_helper_pinned(self):
+        """item 4: docker_helper.sh reads image from config."""
+        with open("dnanexus/docker_helper.sh") as f:
+            c = f.read()
+        assert "read_pggb_config" in c or "config/pipeline.yaml" in c

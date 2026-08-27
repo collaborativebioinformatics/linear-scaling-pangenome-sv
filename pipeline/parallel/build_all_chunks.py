@@ -4,7 +4,7 @@ each reference chunk against each HPRC assembly via minimap2.
 NO linear scaling. NO loading entire genomes — uses samtools faidx on
 the exact source_contig for each independently mapped chunk.
 """
-import argparse, csv, os, subprocess, sys, yaml
+import argparse, csv, hashlib, json, os, subprocess, sys, yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pipeline.prepare.faidx_utils import faidx_extract, ensure_faidx, _revcomp
@@ -54,9 +54,42 @@ def map_chunk(ap, qry, min_mapq, min_cov):
     return best if bc >= min_cov else None
 
 
+def file_sha256(path):
+    if not os.path.exists(path): return ""
+    with open(path, "rb") as f: return hashlib.sha256(f.read()).hexdigest()
+
+
+def git_commit(path="."):
+    try:
+        r = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
+                           text=True, cwd=path)
+        return r.stdout.strip()[:12] if r.returncode == 0 else "no-git"
+    except: return "no-git"
+
+
+def compute_provenance(cid, cs, ce, cfg_p="config/pipeline.yaml",
+                       map_p="results/preparation/sequence_mapping.tsv"):
+    return hashlib.sha256(
+        f"{git_commit()}|{file_sha256(cfg_p)}|{file_sha256(map_p)}|{cid}|{cs}|{ce}"
+        .encode()).hexdigest()[:16]
+
+
+def load_provenance(path="work/chunks/provenance.json"):
+    if not os.path.exists(path): return {}
+    with open(path) as f: return json.load(f)
+
+
+def save_provenance(prov, path="work/chunks/provenance.json"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f: json.dump(prov, f, indent=2)
+    return best if bc >= min_cov else None
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--execute", action="store_true")
+    p.add_argument("--force", action="store_true",
+                   help="Force rebuild even if provenance matches")
     args = p.parse_args()
     chunks = load_manifest()
     if not chunks: print("No manifest."); return
@@ -75,6 +108,20 @@ def main():
     with open(ref) as f:
         ref_seq = "".join(line.strip() for line in f if not line.startswith(">"))
 
+    # Build parent-locus index from sequence_mapping.tsv
+    parent_locus = {}
+    for r in mapping:
+        n = r["assembly_name"]
+        if n not in parent_locus:
+            parent_locus[n] = {
+                "sample": r["sample"], "haplotype": r["haplotype"],
+                "haplotype_label": r["haplotype_label"],
+                "source_contig": r.get("source_contig", ""),
+                "source_start": int(r.get("source_start", 0) or 0),
+                "source_end": int(r.get("source_end", 0) or 0),
+                "strand": r.get("strand", "+"),
+            }
+
     # Pre-find HPRC assembly paths (do NOT load sequences into RAM)
     hap_paths = {}
     for r in mapping:
@@ -90,14 +137,28 @@ def main():
     os.makedirs("work/chunks", exist_ok=True)
     os.makedirs("results/preparation", exist_ok=True)
     cm_rows = []
+    prov = load_provenance()
+    stale_count = 0; fresh_count = 0
     print(f"Building {len(chunks)} alignment-projected chunk FASTA files...")
 
     for c in chunks:
         cid = c["chunk_id"]
         cs = int(c["reference_start"]); ce = int(c["reference_end"])
         op = f"work/chunks/{cid}.fa"
-        if os.path.exists(op) and os.path.getsize(op) > 0:
-            print(f"  EXISTS {cid}"); continue
+        prov_key = f"chunk_{cid}"
+        expected_prov = compute_provenance(cid, cs, ce)
+
+        # Provenance check — regenerate when stale
+        if not args.force and os.path.exists(op) and os.path.getsize(op) > 0:
+            if prov.get(prov_key) == expected_prov:
+                print(f"  CACHED {cid} (provenance match)")
+                fresh_count += 1
+                continue
+            else:
+                print(f"  STALE {cid} (provenance mismatch, regenerating)")
+                stale_count += 1
+        else:
+            fresh_count += 1
 
         qf = f"work/preparation/{cid}_query.fa"
         extract_chunk_fasta(ref_seq, cs, ce, qf)
@@ -116,6 +177,29 @@ def main():
                     print(f"    FATAL: {sm} ({hl}) chunk {cid} unmapped", file=sys.stderr)
                     sys.exit(1)
                 ctg = res["source_contig"]
+
+                # === PARENT-LOCUS CONSTRAINT ===
+                pl = parent_locus.get(name, {})
+                expected_ctg = pl.get("source_contig", "")
+                if expected_ctg and ctg != expected_ctg:
+                    print(f"    FATAL: {sm} ({hl}) chunk {cid} maps to {ctg} "
+                          f"but parent 1Mb mapping is on {expected_ctg}. "
+                          f"Chunk jumps to another contig/paralog!", file=sys.stderr)
+                    sys.exit(1)
+                actual_strand = res["strand"]
+                expected_strand = pl.get("strand", "+")
+                if actual_strand != expected_strand:
+                    print(f"    WARNING: {sm} ({hl}) chunk {cid} strand {actual_strand} "
+                          f"vs parent {expected_strand}. Using actual strand.")
+                ps = pl.get("source_start", 0)
+                pe = pl.get("source_end", 0)
+                if ps and pe:
+                    margin = max(ce - cs, 100000)
+                    ts = res["source_start"]
+                    te = res["source_end"]
+                    if ts < ps - margin or te > pe + margin:
+                        print(f"    WARNING: {sm} ({hl}) chunk {cid} source [{ts},{te}) "
+                              f"outside parent [{ps},{pe}) + margin {margin}")
                 ss = res["source_start"]; se = res["source_end"]
                 strand = res["strand"]
                 # Extract from exact source_contig via samtools faidx
@@ -134,6 +218,9 @@ def main():
                     "mapping_method":res["method"]})
         if os.path.exists(qf): os.remove(qf)
         print(f"  {cid}: {cs}-{ce} ({sc} seqs) -> {op}")
+        prov[prov_key] = expected_prov
+
+    save_provenance(prov)
 
     if cm_rows:
         cm_path = "results/preparation/chunk_mapping.tsv"
@@ -151,6 +238,6 @@ def main():
             cid = c["chunk_id"]
             if not os.path.exists(f"work/chunks/{cid}.gfa"):
                 subprocess.run(["bash","pipeline/parallel/build_chunk.sh",cid], check=False)
-    print(f"Done. {len(chunks)} chunks.")
+    print(f"Done. {len(chunks)} chunks. Fresh: {fresh_count}, Stale: {stale_count}")
 
 if __name__=="__main__": main()

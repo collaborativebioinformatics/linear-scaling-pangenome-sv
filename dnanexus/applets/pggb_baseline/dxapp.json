@@ -1,0 +1,28 @@
+{
+  "name": "pggb_baseline",
+  "title": "PGGB Baseline Graph Builder (DNAnexus job)",
+  "description": "Builds the monolithic baseline PGGB graph on the same worker type as chunk jobs. Shares PGGB config with pggb_chunk via config/pipeline.yaml.",
+  "version": "0.1.0",
+  "inputSpec": [
+    {"name": "fasta", "class": "file", "patterns": ["*.fa","*.fasta"], "help": "Multi-haplotype FASTA for baseline graph"}
+  ],
+  "outputSpec": [
+    {"name": "gfa", "class": "file", "patterns": ["*.gfa"], "help": "Output GFA graph (final)"},
+    {"name": "log", "class": "file", "patterns": ["*.log"], "help": "PGGB execution log"},
+    {"name": "metadata", "class": "file", "patterns": ["*.json"], "help": "Run metadata JSON"}
+  ],
+  "runSpec": {
+    "interpreter": "bash",
+    "file": "src/code.sh",
+    "version": "0",
+    "distribution": "Ubuntu",
+    "release": "24.04"
+  },
+  "access": {
+    "network": ["*"]
+  },
+  "regionalOptions": {
+    "aws:us-east-1": {"instanceType": "mem3_ssd1_v2_x16"}
+  },
+  "timeoutPolicy": {"*": {"hours": 4}}
+}

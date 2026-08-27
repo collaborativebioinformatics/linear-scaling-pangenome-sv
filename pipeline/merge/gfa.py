@@ -108,7 +108,6 @@ class GfaGraph:
                 except Exception as e: raise ValueError(f"Line {ln}: {e}") from e
         return graph
     @classmethod
-    @classmethod
     def parse_file(cls, path):
         with open(path) as f: return cls.parse(f.read(), source=path)
     def to_gfa(self): lines = []; lines.extend(h.to_gfa() for h in self.headers); lines.extend(s.to_gfa() for s in self.segments.values()); lines.extend(l.to_gfa() for l in self.links); lines.extend(p.to_gfa() for p in self.paths.values()); lines.extend(w.to_gfa() for w in self.walks); return NL.join(lines)

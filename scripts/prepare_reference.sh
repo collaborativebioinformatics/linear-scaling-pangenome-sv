@@ -68,4 +68,21 @@ cat > "$META_DIR/reference_metadata.json" << JSONEOF
 }
 JSONEOF
 echo "  Metadata: $META_DIR/reference_metadata.json"
+echo "  Metadata: $META_DIR/reference_metadata.json"
+
+# Stage from DNAnexus project storage if available
+STAGED=false
+PROJECT_ID="${DX_PROJECT_CONTEXT_ID:-${DX_PROJECT_ID:-}}"
+if [ -n "$PROJECT_ID" ]; then
+    DNA_FILE=$(dx find data --name "GRCh38_chr21.fa" --path "$PROJECT_ID:/data/reference" --brief 2>/dev/null | head -1 || echo "")
+    if [ -n "$DNA_FILE" ]; then
+        echo "  Staging from DNAnexus: $DNA_FILE"
+        dx download "$PROJECT_ID:/data/reference/GRCh38_chr21.fa" -o "$CHR21_FA" 2>/dev/null && STAGED=true
+    fi
+fi
+if [ "$STAGED" = true ]; then
+    echo "  Staged from DNAnexus: $CHR21_FA"
+fi
+
+echo "=== Reference ready ==="
 echo "=== Reference ready ==="

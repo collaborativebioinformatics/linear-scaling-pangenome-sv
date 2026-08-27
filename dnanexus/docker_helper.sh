@@ -9,7 +9,10 @@
 
 set -uo pipefail
 
-PGGB_IMAGE="${PGGB_IMAGE:-ghcr.io/pangenome/pggb:latest}"
+read_pggb_config() {
+    python3 -c "import yaml; c=yaml.safe_load(open("config/pipeline.yaml")); print(c["pggb"].get("image", "ghcr.io/pangenome/pggb:latest"))" 2>/dev/null || echo "ghcr.io/pangenome/pggb:latest"
+}
+PGGB_IMAGE="${PGGB_IMAGE:-$(read_pggb_config)}"
 VG_IMAGE="${VG_IMAGE:-quay.io/vgteam/vg:v1.74.1}"
 
 ensure_image() {
@@ -46,15 +49,15 @@ run_pggb() {
             -o "/data/output" \
             -t "$threads" \
             -n "$num_paths" \
-            -p 90 \
-            -s 5000 \
-            -k 29 \
-            -w 50000 \
-            -j 0 \
-            -e 0
+            -p "$MIN_ID" \
+            -s "$SEG_LEN" \
+            -k "$KMER" \
+            -w "$WINDOW" \
+            -j "$MAP_PCT" \
+            -e "$NOISE"
 
     # Find the output GFA
-    local gfa; gfa=$(find "$outdir" -name "*.gfa" -type f | head -1)
+    local gfa; gfa=$(find "$outdir" -name "*final.gfa" -type f 2>/dev/null | head -1)
     if [ -z "$gfa" ]; then
         echo "WARNING: PGGB produced no GFA in $outdir"
         return 1
