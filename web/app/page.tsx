@@ -91,7 +91,11 @@ export default function Home() {
   const renderExplore = () => (
     <div className="explorer-wrapper">
       <div className="sidebar">
-        <div className="sidebar-section"><h3>Graph</h3>
+        <div className="sidebar-section">
+          <h3>1. Choose a Graph</h3>
+          <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
+            Baseline = built all at once. Merged = built in pieces, then stitched.
+          </p>
           {graphNames.map(name => (
             <button key={name} onClick={() => setGraphMode(name)}
               className={"graph-mode-btn" + (graphMode === name ? " active" : "")}>
@@ -99,7 +103,11 @@ export default function Home() {
             </button>
           ))}
         </div>
-        <div className="sidebar-section"><h3>Samples</h3>
+        <div className="sidebar-section">
+          <h3>2. Choose a Person</h3>
+          <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
+            GRCh38 is the reference. Others are real donors.
+          </p>
           {samples.map(s => (
             <div key={s.sample}>
               <button onClick={() => { setSelSample(s.sample); setSelHap(s.haplotypes?.[0] || "0"); }}
@@ -115,20 +123,45 @@ export default function Home() {
             </div>
           ))}
         </div>
+        <div className="sidebar-section">
+          <h3>How to Read This</h3>
+          <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
+            <div><span style={{ display:"inline-block", width:10, height:10, background:"#3b82f6", borderRadius:2, marginRight:6 }}></span> This person's path</div>
+            <div><span style={{ display:"inline-block", width:10, height:10, background:"#22c55e", borderRadius:2, marginRight:6 }}></span> Reference (GRCh38)</div>
+            <div><span style={{ display:"inline-block", width:10, height:10, background:"#94a3b8", borderRadius:2, marginRight:6 }}></span> Shared / other</div>
+            <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
+              Circles = pieces of DNA. Lines = connections.
+              Branches = places where people differ.
+            </div>
+          </div>
+        </div>
       </div>
       <div>
         <GraphExplorer graph={sg}
           onNodeSelect={(i) => { setNodeInfo(i); setEdgeInfo(null); }}
           onEdgeSelect={(e) => { setEdgeInfo(e); setNodeInfo(null); }} />
+        {sg && sg.nodes.length <= 3 && (
+          <div className="card" style={{ marginTop: 12, fontSize: 13, color: "#475569" }}>
+            <strong>Heads up:</strong> this view shows only {sg.nodes.length} node{sg.nodes.length===1?"":"s"} because
+            {selSample === "GRCh38"
+              ? " the reference (GRCh38) is stored as one long continuous piece in this graph. Try clicking HG00673 or HG00733 to see a richly branched graph."
+              : " this person's DNA is very similar to the reference here — few differences to show."}
+          </div>
+        )}
       </div>
-      <div className="inspector"><h3>Inspector</h3>
+      <div className="inspector">
+        <h3>Inspector</h3>
+        <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>Click any circle or line to see details.</p>
         {nodeInfo ? <div>
-          <div className="inspector-row"><span>ID</span><span>{nodeInfo.id}</span></div>
-          <div className="inspector-row"><span>Length</span><span>{nodeInfo.length}</span></div>
-          <div className="inspector-row"><span>Degree</span><span>{nodeInfo.degree}</span></div>
+          <div className="inspector-row"><span>DNA piece ID</span><span>{nodeInfo.id}</span></div>
+          <div className="inspector-row"><span>Length</span><span>{(nodeInfo.length/1000).toFixed(1)} Kb</span></div>
+          <div className="inspector-row"><span>Connections</span><span>{nodeInfo.degree}</span></div>
+          <div className="inspector-row"><span>On this person's path</span><span>{nodeInfo.on_selected_path ? "Yes" : "No"}</span></div>
+          <div className="inspector-row"><span>On reference</span><span>{nodeInfo.on_reference ? "Yes" : "No"}</span></div>
         </div> : edgeInfo ? <div>
-          <div className="inspector-row"><span>Edge</span><span>{edgeInfo.source} → {edgeInfo.target}</span></div>
-        </div> : <div className="inspector-empty">Click a node or edge</div>}
+          <div className="inspector-row"><span>Connection</span><span>{edgeInfo.source} → {edgeInfo.target}</span></div>
+          <div className="inspector-row"><span>Direction</span><span>{edgeInfo.source_orientation}→{edgeInfo.target_orientation}</span></div>
+        </div> : <div className="inspector-empty">👆 Click a circle or line</div>}
       </div>
     </div>
   );
@@ -301,11 +334,21 @@ export default function Home() {
       </section>
 
       <div className="container" style={{ padding: "32px 20px 0" }}>
-        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {["explore", "dashboard", "chunks", "compare"].map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={"graph-btn" + (tab === t ? " active" : "")}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <h2 style={{ fontSize: 22, marginBottom: 4, color: "#1e293b" }}>Explore the Graph Yourself</h2>
+          <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>Use the tabs below to dig in.</p>
+        </div>
+        <div style={{ display: "flex", gap: 4, marginBottom: 16, justifyContent: "center", flexWrap: "wrap" }}>
+        {[
+          { key: "explore", label: "🧬 Explore", hint: "look at the graph" },
+          { key: "dashboard", label: "📊 Results", hint: "numbers & verdict" },
+          { key: "chunks", label: "🧩 Chunks", hint: "the parallel pieces" },
+          { key: "compare", label: "⚖️ Compare", hint: "two people side by side" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} title={t.hint}
+            className={"graph-btn" + (tab === t.key ? " active" : "")}
+            style={{ padding: "10px 18px", fontSize: 14 }}>
+            {t.label}
           </button>
         ))}
       </div>

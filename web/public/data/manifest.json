@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "run_id": "latest",
-  "data_mode": "synthetic",
+  "data_mode": "real",
   "target": {
     "reference": "GRCh38",
     "chromosome": "chr21",
@@ -49,8 +49,8 @@
   ],
   "graphs": {
     "baseline": {
-      "nodes": 502,
-      "edges": 497,
+      "nodes": 5899,
+      "edges": 8240,
       "paths": 5,
       "walks": 0
     },
