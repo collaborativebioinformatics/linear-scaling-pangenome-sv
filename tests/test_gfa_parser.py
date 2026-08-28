@@ -7,8 +7,14 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pipeline.merge.gfa import (
     GfaGraph, Header, Segment, Link, Path, Walk,
-    _revcomp, infer_data_mode, extract_chromosome_from_gfa, _split_orient)
+    _revcomp, infer_data_mode, extract_chromosome_from_gfa, _split_orient,
+    parse_pansn, haplotype_key)
 from pipeline.parallel.make_chunks import create_chunks
+from pipeline.merge.merge_graphs import overlap_aware_stitch, walks_as_paths
+from pipeline.merge.paths import (
+    slice_steps, seam_position, path_interval,
+    stitch_haplotype, group_paths_by_haplotype)
+from pipeline.merge.validate_merge import validate
 
 
 class TestHeader:
@@ -450,10 +456,12 @@ class TestP0Regression:
     def test_chunk_overlap_exact(self):
         """item 3: pairwise overlap between adjacent chunks is exactly 50 kb."""
         from pipeline.parallel.make_chunks import create_chunks
-        chunks = create_chunks(0, 1000000, 400000, 50000)
+        chunks = create_chunks("chr21", 0, 1000000, 400000, 50000)
         for i in range(1, len(chunks)):
-            overlap = chunks[i-1][1] - chunks[i][0]
-            assert overlap == 50000, f"Overlap chunk {i-1}/{i}: {overlap}, expected 50000"
+            overlap = (min(chunks[i - 1]["reference_end"], chunks[i]["reference_end"])
+                       - max(chunks[i - 1]["reference_start"], chunks[i]["reference_start"]))
+            assert overlap == 50000, (
+                f"Overlap chunk {i-1}/{i}: {overlap}, expected 50000")
 
     def test_pggb_params_equal(self):
         """item 3: Baseline and chunk PGGB parameters from pipeline.yaml."""
@@ -567,3 +575,381 @@ class TestP0Regression:
         with open("dnanexus/docker_helper.sh") as f:
             c = f.read()
         assert "read_pggb_config" in c or "config/pipeline.yaml" in c
+
+
+# --- Merge: path spelling, chunk stitching, boundary reporting -------------
+
+REF = "AAAAACCCCCGGGGGTTTTT" * 5          # 100 bp
+ALT = "TTTTTGGGGGCCCCCAAAAA"              # replaces REF[20:40] on the haplotype
+HAP = REF[:20] + ALT + REF[40:]
+
+
+def _chunk(cid, start, end):
+    """Chunk graph over REF[start:end], 20 bp nodes, reference + one haplotype."""
+    g = GfaGraph()
+    g.headers.append(Header("1.1"))
+    ref_steps, hap_steps = [], []
+    for off in range(start, end, 20):
+        rs, hs = REF[off:off + 20], HAP[off:off + 20]
+        name = f"{cid}_{off}"
+        g.segments[name] = Segment(name, rs)
+        ref_steps.append(name + "+")
+        if hs == rs:
+            hap_steps.append(name + "+")
+        else:
+            alt = f"{cid}_{off}_alt"
+            g.segments[alt] = Segment(alt, hs)
+            hap_steps.append(alt + "+")
+    for a, b in zip(ref_steps, ref_steps[1:]):
+        g.links.append(Link(a[:-1], "+", b[:-1], "+"))
+    rn = f"GRCh38#0#chr21:{start}-{end}"
+    hn = f"HG1#1#chr21:{start}-{end}"
+    g.paths[rn] = Path(rn, ref_steps)
+    g.paths[hn] = Path(hn, hap_steps)
+    return cid, g
+
+
+class TestPathSequence:
+    def test_spell_forward(self):
+        g = GfaGraph.parse("S\ts1\tACGT\nS\ts2\tTTTT\nP\tp\ts1+,s2+\t*")
+        assert g.get_path_sequence("p") == "ACGTTTTT"
+
+    def test_spell_reverse_step(self):
+        g = GfaGraph.parse("S\ts1\tACGT\nS\ts2\tTTGC\nP\tp\ts1+,s2-\t*")
+        assert g.get_path_sequence("p") == "ACGT" + "GCAA"
+
+    def test_walk_sequence(self):
+        g = GfaGraph.parse("S\ts1\tACGT\nS\ts2\tGGGG")
+        g.walks.append(Walk("S", "1", "c", 0, 8, 2, ["s1+", "s2+"]))
+        assert g.get_walk_sequence(g.walks[0]) == "ACGTGGGG"
+
+    def test_orphans_and_dangling(self):
+        g = GfaGraph.parse(
+            "S\ts1\tACGT\nS\ts2\tGGGG\nL\ts1\t+\tmissing\t+\t*\nP\tp\ts1+\t*")
+        assert g.orphan_segments() == {"s2"}
+        assert len(g.dangling_links()) == 1
+
+
+class TestPanSN:
+    def test_subrange(self):
+        assert parse_pansn("HG1#1#chr21:40-100")[:5] == ("HG1", "1", "chr21", 40, 100)
+
+    def test_chunk_suffix(self):
+        s, h, c, st, en, cid = parse_pansn("HG1#1#chr21_chunk_0003")
+        assert (s, h, c, st, cid) == ("HG1", "1", "chr21", None, "chunk_0003")
+
+    def test_plain(self):
+        assert haplotype_key("GRCh38#0#chr21") == ("GRCh38", "0", "chr21")
+
+
+class TestSlicing:
+    def test_seam_midpoint(self):
+        assert seam_position((0, 60), (40, 100)) == 50
+
+    def test_seam_none_when_disjoint(self):
+        assert seam_position((0, 40), (60, 100)) is None
+
+    def test_slice_forward_splits_node(self):
+        g = GfaGraph.parse("S\ta\tAAAAA\nS\tb\tCCCCC\nP\tp\ta+,b+\t*")
+        assert slice_steps(g, g.path_steps("p"), 0, 3, 7) == [
+            ("a", "+", 3, 5), ("b", "+", 0, 2)]
+
+    def test_slice_reverse_keeps_right_piece(self):
+        g = GfaGraph.parse("S\ta\tAAACC\nP\tp\ta-\t*")
+        assert slice_steps(g, g.path_steps("p"), 0, 0, 3) == [("a", "-", 2, 5)]
+
+    def test_path_interval_from_subrange(self):
+        _cid, g = _chunk("c1", 40, 100)
+        assert path_interval(g, "HG1#1#chr21:40-100") == (40, 100)
+
+
+class TestOverlapAwareStitch:
+    def _merged(self):
+        chunks = [_chunk("chunk_0001", 0, 60), _chunk("chunk_0002", 40, 100)]
+        return chunks, overlap_aware_stitch(chunks)
+
+    def test_reference_path_spells_whole_region(self):
+        _c, (m, _br) = self._merged()
+        assert m.get_path_sequence("GRCh38#0#chr21") == REF
+
+    def test_haplotype_path_keeps_its_variant(self):
+        _c, (m, _br) = self._merged()
+        assert m.get_path_sequence("HG1#1#chr21") == HAP
+
+    def test_overlap_counted_once(self):
+        _c, (m, _br) = self._merged()
+        assert m.path_length("GRCh38#0#chr21") == len(REF)
+
+    def test_shared_nodes_stay_shared(self):
+        _c, (m, _br) = self._merged()
+        ref = {n for n, _o in m.path_steps("GRCh38#0#chr21")}
+        hap = {n for n, _o in m.path_steps("HG1#1#chr21")}
+        assert ref & hap, "merge split every haplotype into its own chain"
+
+    def test_boundary_reported_pass(self):
+        _c, (_m, br) = self._merged()
+        assert len(br) == 1
+        assert br[0]["status"] == "PASS"
+        assert br[0]["haplotypes_joined"] == 2
+
+    def test_order_independent(self):
+        chunks, (m, _br) = self._merged()
+        rev, _br2 = overlap_aware_stitch(list(reversed(chunks)))
+        assert rev.to_gfa() == m.to_gfa()
+
+    def test_gap_is_reported_not_papered_over(self):
+        chunks = [_chunk("chunk_0001", 0, 40), _chunk("chunk_0002", 60, 100)]
+        _m, br = overlap_aware_stitch(chunks)
+        assert br[0]["status"] == "FAIL"
+        assert br[0]["haplotypes_unjoined"] == 2
+
+    def test_disjoint_union_keeps_every_chunk_path(self):
+        from pipeline.merge.merge_graphs import diagnostic_disjoint_union
+        chunks, _m = self._merged()
+        u = diagnostic_disjoint_union(chunks)
+        assert u.path_count() == 4
+        assert u.node_count() == sum(g.node_count() for _c, g in chunks)
+
+    def test_validate_accepts_the_stitch(self, tmp_path):
+        _c, (m, _br) = self._merged()
+        merged_p, base_p = tmp_path / "merged.gfa", tmp_path / "baseline.gfa"
+        m.write_gfa(str(merged_p))
+        base = GfaGraph()
+        base.headers.append(Header("1.1"))
+        base.segments["r"] = Segment("r", REF)
+        base.segments["h"] = Segment("h", HAP)
+        base.paths["GRCh38#0#chr21"] = Path("GRCh38#0#chr21", ["r+"])
+        base.paths["HG1#1#chr21"] = Path("HG1#1#chr21", ["h+"])
+        base.write_gfa(str(base_p))
+        assert validate(str(base_p), str(merged_p)) == []
+
+    def test_validate_catches_a_broken_merge(self, tmp_path):
+        _c, (m, _br) = self._merged()
+        first = m.path_steps("GRCh38#0#chr21")[0][0]
+        m.segments[first].sequence = "G" + m.segments[first].sequence[1:]
+        merged_p, base_p = tmp_path / "merged.gfa", tmp_path / "baseline.gfa"
+        m.write_gfa(str(merged_p))
+        base = GfaGraph()
+        base.segments["r"] = Segment("r", REF)
+        base.paths["GRCh38#0#chr21"] = Path("GRCh38#0#chr21", ["r+"])
+        base.write_gfa(str(base_p))
+        errs = [i for i in validate(str(base_p), str(merged_p))
+                if i["severity"] == "ERROR"]
+        assert any("sequence differs" in e["message"] for e in errs)
+
+    def test_dropped_middle_chunk_does_not_invent_a_false_edge(self):
+        seq = "ABCDEFGH"
+
+        def span(cid, start, end):
+            g = GfaGraph()
+            g.headers.append(Header("1.1"))
+            n = f"{cid}_n"
+            g.segments[n] = Segment(n, seq[start:end])
+            pn = f"GRCh38#0#chr21:{start}-{end}"
+            g.paths[pn] = Path(pn, [n + "+"])
+            return cid, g
+
+        chunks = [
+            span("chunk_0001", 0, 8),
+            span("chunk_0002", 2, 8),
+            span("chunk_0003", 2, 4),
+        ]
+        hap = ("GRCh38", "0", "chr21")
+        pieces, _gaps = stitch_haplotype(
+            chunks, group_paths_by_haplotype(chunks)[hap])
+        assert [p[0] for p in pieces] == ["chunk_0001", "chunk_0003"], (
+            "precondition: middle chunk must contribute zero pieces")
+
+        m, br = overlap_aware_stitch(chunks)
+        spelled = m.get_path_sequence("GRCh38#0#chr21")
+        jumped = seq[0:5] + seq[3:4]
+        assert spelled != jumped, (
+            "merged path jumps backward across a dropped middle chunk")
+        assert spelled and spelled in seq, (
+            f"path is not a contiguous haplotype slice: {spelled!r}")
+        sequences = {s.name: s.sequence for s in m.segments.values()}
+        false_edge = any(
+            sequences[link.from_node].endswith("E")
+            and sequences[link.to_node] == "D"
+            for link in m.links)
+        assert not false_edge, (
+            "invented edge from left tail to right head that are not "
+            "consecutive on the haplotype")
+        if spelled != seq:
+            assert any(r["status"] == "FAIL" for r in br), (
+                "dropped middle chunk left a non-adjacent join with no FAIL")
+
+    def test_boundary_report_follows_reference_order_not_input_order(self):
+        chunks, (m, br) = self._merged()
+        assert br[0]["left_chunk"] == "chunk_0001"
+        assert br[0]["right_chunk"] == "chunk_0002"
+        rev, rev_br = overlap_aware_stitch(list(reversed(chunks)))
+        assert rev.to_gfa() == m.to_gfa()
+        assert len(rev_br) == 1
+        assert rev_br[0]["left_chunk"] == "chunk_0001"
+        assert rev_br[0]["right_chunk"] == "chunk_0002"
+        assert rev_br[0]["boundary"] == "chunk_0001--chunk_0002"
+        assert rev_br[0]["status"] == "PASS"
+
+    def test_reversed_gap_is_still_reported_fail(self):
+        chunks = [_chunk("chunk_0002", 60, 100), _chunk("chunk_0001", 0, 40)]
+        _m, br = overlap_aware_stitch(chunks)
+        assert len(br) == 1
+        assert br[0]["left_chunk"] == "chunk_0001"
+        assert br[0]["right_chunk"] == "chunk_0002"
+        assert br[0]["boundary"] == "chunk_0001--chunk_0002"
+        assert br[0]["status"] == "FAIL"
+        assert br[0]["haplotypes_unjoined"] == 2
+
+
+class TestWalkChunks:
+    def test_w_line_chunk_is_stitchable(self):
+        g = GfaGraph()
+        g.headers.append(Header("1.1"))
+        g.segments["n1"] = Segment("n1", REF[:20])
+        g.walks.append(Walk("GRCh38", "0", "chr21", 0, 20, 1, ["n1+"]))
+        p = walks_as_paths(g)
+        assert "GRCh38#0#chr21:0-20" in p.paths
+        assert p.get_path_sequence("GRCh38#0#chr21:0-20") == REF[:20]
+
+
+class TestChunkOverlapMath:
+    def test_adjacent_windows_share_the_configured_overlap(self):
+        c = create_chunks("chr21", 0, 2000, 800, 100)
+        shared = [min(a["reference_end"], b["reference_end"])
+                  - max(a["reference_start"], b["reference_start"])
+                  for a, b in zip(c, c[1:])]
+        assert shared == [100, 100]
+
+    def test_cores_tile_without_gaps(self):
+        c = create_chunks("chr21", 0, 2000, 800, 100)
+        assert c[0]["core_start"] == 0 and c[-1]["core_end"] == 2000
+        assert all(a["core_end"] == b["core_start"] for a, b in zip(c, c[1:]))
+
+    def test_edge_chunks_have_one_sided_padding(self):
+        c = create_chunks("chr21", 0, 2000, 800, 100)
+        assert c[0]["overlap_left"] == 0 and c[-1]["overlap_right"] == 0
+
+    def test_overlap_larger_than_chunk_rejected(self):
+        try:
+            create_chunks("chr21", 0, 2000, 100, 100)
+        except ValueError:
+            return
+        raise AssertionError("expected ValueError for overlap >= chunk_size")
+
+
+class TestHPRCIndelCoordinates:
+    """Haplotype coordinates diverge from GRCh38 when the hap has an indel.
+
+    Real HPRC chunk FASTAs are named SAMPLE#HAP#CONTIG with no :start-end
+    subrange. The only absolute coordinates are source_start/source_end/strand
+    in chunk_mapping.tsv. Falling back to GRCh38 reference_start cuts the
+    haplotype at the wrong seam and drops the inserted bases.
+    """
+
+    REF = "ACGT" * 25          # 100 bp
+    INS = "NNNNNNNNNN"         # 10 bp insertion at ref pos 25
+    HAP = REF[:25] + INS + REF[25:]  # 110 bp
+
+    def _hap_chunk(self, cid, ref_s, ref_e, hap_s, hap_e):
+        g = GfaGraph()
+        g.headers.append(Header("1.1"))
+        rname, hname = f"{cid}_r", f"{cid}_h"
+        g.segments[rname] = Segment(rname, self.REF[ref_s:ref_e])
+        g.segments[hname] = Segment(hname, self.HAP[hap_s:hap_e])
+        g.paths["GRCh38#0#chr21"] = Path("GRCh38#0#chr21", [rname + "+"])
+        g.paths["HG1#1#chr21"] = Path("HG1#1#chr21", [hname + "+"])
+        return cid, g
+
+    def _mapping(self):
+        return [
+            {"chunk_id": "chunk_0001", "sample": "GRCh38", "haplotype": "0",
+             "source_start": 0, "source_end": 60, "strand": "+"},
+            {"chunk_id": "chunk_0001", "sample": "HG1", "haplotype": "1",
+             "source_start": 0, "source_end": 70, "strand": "+"},
+            {"chunk_id": "chunk_0002", "sample": "GRCh38", "haplotype": "0",
+             "source_start": 40, "source_end": 100, "strand": "+"},
+            {"chunk_id": "chunk_0002", "sample": "HG1", "haplotype": "1",
+             "source_start": 50, "source_end": 110, "strand": "+"},
+        ]
+
+    def _rows(self):
+        return {
+            "chunk_0001": {"reference_start": 0, "reference_end": 60},
+            "chunk_0002": {"reference_start": 40, "reference_end": 100},
+        }
+
+    def test_grch38_fallback_drops_the_insertion(self):
+        """If we placed the hap on GRCh38 coords, the 10 bp insert is lost."""
+        chunks = [
+            self._hap_chunk("chunk_0001", 0, 60, 0, 70),
+            self._hap_chunk("chunk_0002", 40, 100, 50, 110),
+        ]
+        m, _br = overlap_aware_stitch(chunks, chunk_rows=self._rows())
+        assert m.get_path_sequence("HG1#1#chr21") != self.HAP
+
+    def test_mapping_coords_preserve_haplotype_with_indel(self):
+        chunks = [
+            self._hap_chunk("chunk_0001", 0, 60, 0, 70),
+            self._hap_chunk("chunk_0002", 40, 100, 50, 110),
+        ]
+        m, br = overlap_aware_stitch(
+            chunks, chunk_rows=self._rows(), chunk_mapping=self._mapping())
+        assert m.get_path_sequence("GRCh38#0#chr21") == self.REF
+        assert m.get_path_sequence("HG1#1#chr21") == self.HAP
+        assert self.INS in m.get_path_sequence("HG1#1#chr21")
+        assert br[0]["status"] == "PASS"
+
+    def test_w_line_haplotype_coords_still_stitch(self):
+        """W-line SeqStart/SeqEnd are already haplotype coords — keep that."""
+        ref, hap = self.REF, self.HAP
+        def wchunk(cid, sample, hap_id, start, end, seq):
+            g = GfaGraph()
+            g.headers.append(Header("1.1"))
+            n = f"{cid}_{sample}"
+            g.segments[n] = Segment(n, seq)
+            g.walks.append(Walk(sample, hap_id, "chr21", start, end, path=[n + "+"]))
+            return cid, g
+
+        # Two overlapping W-line graphs per haplotype, merged by combining
+        # walks onto one graph per chunk.
+        c1, c2 = GfaGraph(), GfaGraph()
+        for g, cid, rs, re, hs, he in (
+                (c1, "chunk_0001", 0, 60, 0, 70),
+                (c2, "chunk_0002", 40, 100, 50, 110)):
+            g.headers.append(Header("1.1"))
+            rn, hn = f"{cid}_r", f"{cid}_h"
+            g.segments[rn] = Segment(rn, ref[rs:re])
+            g.segments[hn] = Segment(hn, hap[hs:he])
+            g.walks.append(Walk("GRCh38", "0", "chr21", rs, re, path=[rn + "+"]))
+            g.walks.append(Walk("HG1", "1", "chr21", hs, he, path=[hn + "+"]))
+        m, br = overlap_aware_stitch([("chunk_0001", c1), ("chunk_0002", c2)])
+        assert m.get_path_sequence("GRCh38#0#chr21") == ref
+        assert m.get_path_sequence("HG1#1#chr21") == hap
+        assert br[0]["status"] == "PASS"
+
+    def test_mapping_overrides_chunk_local_w_line_coords(self):
+        """PGGB W-lines on unsliced FASTA headers are 0-based in the chunk.
+
+        Absolute haplotype coordinates live in chunk_mapping.tsv. Mapping
+        must win over those chunk-local start/end values or an indel shifts
+        the seam onto the wrong bases.
+        """
+        ref, hap = self.REF, self.HAP
+        c1, c2 = GfaGraph(), GfaGraph()
+        for g, cid, rs, re, hs, he in (
+                (c1, "chunk_0001", 0, 60, 0, 70),
+                (c2, "chunk_0002", 40, 100, 50, 110)):
+            g.headers.append(Header("1.1"))
+            rn, hn = f"{cid}_r", f"{cid}_h"
+            g.segments[rn] = Segment(rn, ref[rs:re])
+            g.segments[hn] = Segment(hn, hap[hs:he])
+            g.walks.append(Walk("GRCh38", "0", "chr21", 0, re - rs, path=[rn + "+"]))
+            g.walks.append(Walk("HG1", "1", "chr21", 0, he - hs, path=[hn + "+"]))
+        m, br = overlap_aware_stitch(
+            [("chunk_0001", c1), ("chunk_0002", c2)],
+            chunk_rows=self._rows(), chunk_mapping=self._mapping())
+        assert m.get_path_sequence("GRCh38#0#chr21") == ref
+        assert m.get_path_sequence("HG1#1#chr21") == hap
+        assert br[0]["status"] == "PASS"
+
