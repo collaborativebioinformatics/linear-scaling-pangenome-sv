@@ -1,22 +1,56 @@
 
 # Parallel Pangenome Graph Construction (Linear Scaling SV)
 
-> **Research question:** Can regional pangenome graphs be constructed independently in parallel and subsequently reassembled into a single graph while preserving haplotype paths, topology, sequence content, and variant representation relative to a conventionally constructed monolithic graph?
-## Quick Start
+[![Tests](https://img.shields.io/badge/tests-173%20passed-brightgreen)](tests/)
+[![Website](https://img.shields.io/badge/website-live-blue)](https://web-lemon-zeta-40.vercel.app)
+[![DNAnexus](https://img.shields.io/badge/DNAnexus-Group11__2026-orange)]()
+[![Dataset](https://img.shields.io/badge/data-real%20HPRC%20chr21%201%20Mb-8b5cf6)]()
+
+> **Research question:** Can pangenome graphs be built in parallel chunks and stitched back together while preserving haplotype paths, topology, and variant representation compared to a monolithic build?
+
+## 🚀 Quick Start
+
+### 1-Minute Local Demo (no DNAnexus, no HPRC data)
 
 ```bash
-# Local synthetic demo (no DNAnexus needed)
-make check      # Check environment
-make demo       # Generate synthetic data, build GFAs, stitch, export web JSON
-make test       # Run 173 tests
-make web        # Start Next.js dev server at http://localhost:3000
+git clone https://github.com/collaborativebioinformatics/linear-scaling-pangenome-sv.git
+cd linear-scaling-pangenome-sv
+pip install pyyaml pytest
+make check           # Verify your environment
+make demo            # Build synthetic graphs, stitch, export web data
+make test            # 173 tests
+make web             # Open http://localhost:3000
 ```
 
-For the interactive web explorer, see [Web Explorer](#web-explorer) below.
+### Explore the Real 1 Mb chr21 Benchmark
 
-<img width="2347" height="1660" alt="logo" src="https://github.com/user-attachments/assets/e0a37556-7659-4a01-becb-7b6bf4b1e008" />
+Visit **[web-lemon-zeta-40.vercel.app](https://web-lemon-zeta-40.vercel.app)** to see the real HPRC baseline:
 
-## Introduction
+- **🧬 Explore** — interactive Cytoscape graph with color-coded shared/unique DNA
+- **📊 Results** — 10,389 nodes, 14,185 edges
+- **🧩 Chunks** — 3 overlapping 400 Kb chunks
+- **⚖️ Compare** — compare any two people's DNA
+- **⏱️ Speed** — complexity scaling chart
+
+---
+
+## 📊 Real Benchmark Results (DNAnexus, Aug 28 2026)
+
+| Metric | Value |
+|--------|-------|
+| **Region** | GRCh38 chr21:20,000,000–21,000,000 (1,000,000 bp) |
+| **Haplotypes** | 5 (GRCh38 + HG00673/733 paternal+maternal) |
+| **Baseline nodes** | 10,389 |
+| **Baseline edges** | 14,185 |
+| **Baseline wall time** | 327s (5.5 min) on `mem3_ssd1_v2_x16` |
+| **Parallel wall time** | 272s (4.5 min) — 1.20× speedup |
+| **PGGB** | v0.6.0, pinned `sha256:44f3563c`, -K 19, -k 29 |
+| **Chunk status** | ⚠️ Fix in progress — wfmash two-pass issue for small windows |
+| **Stitch / Truvari** | Pending valid chunk GFAs |
+
+---
+
+## 🏗️ Full Pipeline
 
 A pangenome graph represents the genetic variation across many individuals or haplotypes in a single data structure, rather than forcing every genome to be described as a list of differences from one linear reference sequence. Conventional linear comparisons use references like GRCh38, which collapse human diversity into a single representative path. With this approach, structural variants are often missed or misrepresented in regions of high diversity or repetitiveness. A pangenome graph can encode the divergent portions of a sample genome as alternate paths/nodes, inherently capturing structural variation such as large insertions, deletions, and rearrangements. 
 
