@@ -58,6 +58,37 @@ def _build_selected_path(g, sample, hap):
     return None, []
 
 
+def _build_shared_nodes(g):
+    """Return set of node IDs that appear on paths from multiple samples.
+    
+    In PGGB graphs, the reference may be a single isolated node (node 1).
+    Instead of tying "reference" to that node, we identify shared/common
+    nodes — nodes that appear on paths from at least two different individuals.
+    """
+    sample_nodes = {}  # sample -> set of nodes
+    for pn in g.paths:
+        s, h, c, _a, _b, _c2 = parse_pansn(pn)
+        nodes = set()
+        common_set = sample_nodes.setdefault(s, set())
+        for seg, orient in g.path_steps(pn):
+            nodes.add(seg)
+        common_set.update(nodes)
+    for w in g.walks:
+        nodes = set()
+        common_set = sample_nodes.setdefault(w.sample, set())
+        for seg, orient in g.walk_steps(w):
+            nodes.add(seg)
+        common_set.update(nodes)
+    
+    # Nodes that appear in >1 sample
+    shared = set()
+    samples_list = list(sample_nodes.values())
+    for i in range(len(samples_list)):
+        for j in range(i + 1, len(samples_list)):
+            shared |= samples_list[i] & samples_list[j]
+    return shared
+
+
 def _extract_sample_graph(g, sample, hap, graph_label):
     """Build a bounded per-haplotype graph: selected path + one-hop neighbors."""
     path_name, steps = _build_selected_path(g, sample, hap)
@@ -66,6 +97,9 @@ def _extract_sample_graph(g, sample, hap, graph_label):
         selected.add(seg)
 
     include = set(selected)
+    shared_path = _build_shared_nodes(g)
+    # Always include shared nodes so the common backbone is visible.
+    include |= shared_path
     for link in g.links:
         if link.from_node in selected:
             include.add(link.to_node)
@@ -81,7 +115,6 @@ def _extract_sample_graph(g, sample, hap, graph_label):
             neighbors.setdefault(link.from_node, set()).add(link.to_node)
             neighbors.setdefault(link.to_node, set()).add(link.from_node)
 
-    is_reference = (sample == "GRCh38")
     nodes = []
     for seg_name in include:
         seg = g.segments.get(seg_name)
@@ -91,7 +124,7 @@ def _extract_sample_graph(g, sample, hap, graph_label):
             "id": seg_name,
             "length": seg.length,
             "on_selected_path": seg_name in selected,
-            "on_reference": is_reference and (seg_name in selected),
+            "on_reference": seg_name in shared_path,
             "degree": degree.get(seg_name, 0),
             "neighbors": sorted(neighbors.get(seg_name, [])),
         })
@@ -111,7 +144,7 @@ def _extract_sample_graph(g, sample, hap, graph_label):
             "source_orientation": link.from_orient,
             "target_orientation": link.to_orient,
             "on_selected_path": link.from_node in selected and link.to_node in selected,
-            "on_reference": is_reference and link.from_node in selected and link.to_node in selected,
+            "on_reference": link.from_node in shared_path and link.to_node in shared_path,
         })
 
     original_nodes = len(nodes)

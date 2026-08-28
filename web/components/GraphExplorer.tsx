@@ -127,7 +127,7 @@ export default function GraphExplorer({
     cy.on("mouseover", "node", (evt: EventObject) => {
       const n = evt.target; const d = n.data();
       const pos = n.renderedPosition();
-      const role = d.onRef ? "shared with reference" : d.onPath ? "this person only" : "other";
+      const role = d.onRef ? "shared with others" : d.onPath ? "this person only" : "other";
       const kb = ((d.length || 0) / 1000).toFixed(1);
       setTooltip({
         x: pos.x, y: pos.y,

@@ -122,7 +122,7 @@ export default function Home() {
         <div className="sidebar-section">
           <h3>2. Choose a Person</h3>
           <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
-            GRCh38 is the reference. Others are real donors.
+            Their DNA path is traced in blue. Green = shared with other people.
           </p>
           {samples.map(s => (
             <div key={s.sample}>
@@ -143,13 +143,11 @@ export default function Home() {
           <h3>How to Read This</h3>
           <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
             <div><span style={{ display:"inline-block", width:10, height:10, background:"#3b82f6", borderRadius:2, marginRight:6 }}></span> This person's path</div>
-            <div><span style={{ display:"inline-block", width:10, height:10, background:"#22c55e", borderRadius:2, marginRight:6 }}></span> Reference (GRCh38)</div>
-            <div><span style={{ display:"inline-block", width:10, height:10, background:"#cbd5e1", borderRadius:2, marginRight:6 }}></span> Other samples</div>
+            <div><span style={{ display:"inline-block", width:10, height:10, background:"#22c55e", borderRadius:2, marginRight:6 }}></span> Shared with others</div>
+            <div><span style={{ display:"inline-block", width:10, height:10, background:"#cbd5e1", borderRadius:2, marginRight:6 }}></span> Other nodes</div>
             <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
               Circles = pieces of DNA. Lines = connections.
-              Hover over a circle for details.
-              Bigger circles = longer DNA pieces.
-              Branches = places where people differ.
+              Hover for details. Bigger = longer. Branches = differences.
             </div>
           </div>
         </div>
@@ -162,8 +160,8 @@ export default function Home() {
           <div className="card" style={{ marginTop: 12, fontSize: 13, color: "#475569" }}>
             <strong>Heads up:</strong> this view shows only {sg.nodes.length} node{sg.nodes.length===1?"":"s"} because
             {selSample === "GRCh38"
-              ? " the reference (GRCh38) is stored as one long continuous piece in this graph. Try clicking HG00673 or HG00733 to see a richly branched graph."
-              : " this person's DNA is very similar to the reference here — few differences to show."}
+              ? " GRCh38 is stored as one large reference piece in this graph. Try HG00673 or HG00733 to see a richly branched path with shared and unique regions."
+              : " this person's DNA is very similar to the others here — few differences to show."}
           </div>
         )}
       </div>
@@ -175,7 +173,7 @@ export default function Home() {
           <div className="inspector-row"><span>Length</span><span>{(nodeInfo.length/1000).toFixed(1)} Kb</span></div>
           <div className="inspector-row"><span>Connections</span><span>{nodeInfo.degree}</span></div>
           <div className="inspector-row"><span>On this person's path</span><span>{nodeInfo.on_selected_path ? "Yes" : "No"}</span></div>
-          <div className="inspector-row"><span>On reference</span><span>{nodeInfo.on_reference ? "Yes" : "No"}</span></div>
+          <div className="inspector-row"><span>Shared with others</span><span>{nodeInfo.on_reference ? "Yes" : "No"}</span></div>
         </div> : edgeInfo ? <div>
           <div className="inspector-row"><span>Connection</span><span>{edgeInfo.source} → {edgeInfo.target}</span></div>
           <div className="inspector-row"><span>Direction</span><span>{edgeInfo.source_orientation}→{edgeInfo.target_orientation}</span></div>
