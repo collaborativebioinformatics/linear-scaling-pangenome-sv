@@ -3,6 +3,7 @@
 
 [![Tests](https://img.shields.io/badge/tests-173%20passed-brightgreen)](tests/)
 [![Website](https://img.shields.io/badge/website-live-blue)](https://web-lemon-zeta-40.vercel.app)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-live-2ea44f)](https://collaborativebioinformatics.github.io/linear-scaling-pangenome-sv/)
 [![DNAnexus](https://img.shields.io/badge/DNAnexus-Group11__2026-orange)]()
 [![Dataset](https://img.shields.io/badge/data-real%20HPRC%20chr21%201%20Mb-8b5cf6)]()
 
