@@ -9,12 +9,23 @@ interface Props {
   onEdgeSelect?: (info: EdgeInfo | null) => void;
 }
 
+const MIN_NODE = 14;
+const MAX_NODE = 46;
+
+function nodeSize(length: number) {
+  // log scale so a 1 Mb node doesn't dwarf a 1 kb node, but sizes stay readable
+  if (!length) return MIN_NODE;
+  const s = MIN_NODE + Math.log10(length + 1) * 4.2;
+  return Math.min(MAX_NODE, Math.max(MIN_NODE, s));
+}
+
 export default function GraphExplorer({
   graph, onNodeSelect, onEdgeSelect,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
   const [searchVal, setSearchVal] = useState("");
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const buildElements = useCallback((g: SampleGraph) => {
     const els: any[] = g.nodes.map((n: GraphNode) => ({
@@ -43,29 +54,44 @@ export default function GraphExplorer({
       elements: buildElements(graph),
       style: [
         { selector: "node", style: {
-            width: 20, height: 20, "background-color": "#94a3b8",
-            label: "data(label)", "font-size": "8px",
-            "text-valign": "center", "text-halign": "center", color: "#1e293b",
+            width: (el: any) => nodeSize(el.data("length")),
+            height: (el: any) => nodeSize(el.data("length")),
+            "background-color": "#cbd5e1",
+            "border-width": 1.5, "border-color": "#64748b",
+            // no permanent text labels — hover tooltip instead (keeps canvas readable)
+            "text-opacity": 0,
         }},
         { selector: "node.onpath", style: {
-            "background-color": "#3b82f6", "border-color": "#1d4ed8", "border-width": 2,
+            "background-color": "#3b82f6", "border-color": "#1d4ed8",
         }},
         { selector: "node.onref", style: {
-            "background-color": "#22c55e", "border-color": "#16a34a", "border-width": 2,
+            "background-color": "#22c55e", "border-color": "#15803d",
+        }},
+        { selector: "node:selected", style: {
+            "border-color": "#f59e0b", "border-width": 4,
         }},
         { selector: "node.highlighted", style: {
             "border-color": "#f59e0b", "border-width": 4,
         }},
         { selector: "edge", style: {
-            width: 2, "line-color": "#cbd5e1", "target-arrow-color": "#cbd5e1",
-            "target-arrow-shape": "triangle", "curve-style": "bezier",
+            width: 1.5, "line-color": "#cbd5e1", "target-arrow-color": "#cbd5e1",
+            "target-arrow-shape": "triangle", "arrow-scale": 0.8,
+            "curve-style": "bezier",
         }},
         { selector: "edge.onpath", style: {
             width: 3, "line-color": "#3b82f6", "target-arrow-color": "#3b82f6",
         }},
       ],
-      layout: { name: "cose", animate: false },
-      wheelSensitivity: 0.3, minZoom: 0.1, maxZoom: 10,
+      // "subway map" layout: reference backbone flows one direction,
+      // variants split off and rejoin — far more intuitive than a force-directed ball.
+      layout: {
+        name: "breadthfirst",
+        directed: true,
+        spacingFactor: 1.15,
+        avoidOverlap: true,
+        animate: false,
+      },
+      wheelSensitivity: 0.3, minZoom: 0.05, maxZoom: 10,
     });
     cyRef.current = cy;
 
@@ -97,6 +123,18 @@ export default function GraphExplorer({
         if (onEdgeSelect) onEdgeSelect(null);
       }
     });
+
+    cy.on("mouseover", "node", (evt: EventObject) => {
+      const n = evt.target; const d = n.data();
+      const pos = n.renderedPosition();
+      const role = d.onRef ? "shared with reference" : d.onPath ? "this person only" : "other";
+      const kb = ((d.length || 0) / 1000).toFixed(1);
+      setTooltip({
+        x: pos.x, y: pos.y,
+        text: `${d.id}\n${kb} Kb · ${role}`,
+      });
+    });
+    cy.on("mouseout", "node", () => setTooltip(null));
 
     return () => { cy.destroy(); cyRef.current = null; };
   }, [graph, onNodeSelect, onEdgeSelect, buildElements]);
@@ -136,7 +174,14 @@ export default function GraphExplorer({
           </span>
         )}
       </div>
-      <div ref={containerRef} className="graph-canvas" />
+      <div style={{ position: "relative" }}>
+        <div ref={containerRef} className="graph-canvas" />
+        {tooltip && (
+          <div className="graph-tooltip" style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}>
+            {tooltip.text.split("\n").map((l, i) => <div key={i}>{l}</div>)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

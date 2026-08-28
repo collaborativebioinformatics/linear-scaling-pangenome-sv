@@ -94,7 +94,7 @@ export default function Home() {
         <div className="sidebar-section">
           <h3>1. Choose a Graph</h3>
           <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
-            Baseline = built all at once. Merged = built in pieces, then stitched.
+            One region of chromosome 21, built two ways — to prove both give the same answer.
           </p>
           {graphNames.map(name => (
             <button key={name} onClick={() => setGraphMode(name)}
@@ -102,6 +102,22 @@ export default function Home() {
               {name === "merged" ? "Merged (stitched)" : name === "baseline" ? "Baseline" : name}
             </button>
           ))}
+          <div className="graph-mode-explainer">
+            {graphMode === "merged" ? (
+              <>
+                <div className="gm-row"><span className="gm-chip">🧩</span> Cut the region into small overlapping pieces (chunks).</div>
+                <div className="gm-row"><span className="gm-chip">⚙️</span> Build a mini-graph for each piece in parallel.</div>
+                <div className="gm-row"><span className="gm-chip">🪡</span> Stitch the pieces together on their overlaps.</div>
+                <div className="gm-row gm-fast"><span className="gm-chip">⚡</span> This is our method — fast & scalable.</div>
+              </>
+            ) : (
+              <>
+                <div className="gm-row"><span className="gm-chip">🧬</span> Build the whole region in one shot.</div>
+                <div className="gm-row"><span className="gm-chip">🐢</span> Works, but slow for big genomes.</div>
+                <div className="gm-row gm-fast"><span className="gm-chip">🎯</span> This is the gold standard we compare against.</div>
+              </>
+            )}
+          </div>
         </div>
         <div className="sidebar-section">
           <h3>2. Choose a Person</h3>
@@ -128,9 +144,11 @@ export default function Home() {
           <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
             <div><span style={{ display:"inline-block", width:10, height:10, background:"#3b82f6", borderRadius:2, marginRight:6 }}></span> This person's path</div>
             <div><span style={{ display:"inline-block", width:10, height:10, background:"#22c55e", borderRadius:2, marginRight:6 }}></span> Reference (GRCh38)</div>
-            <div><span style={{ display:"inline-block", width:10, height:10, background:"#94a3b8", borderRadius:2, marginRight:6 }}></span> Shared / other</div>
+            <div><span style={{ display:"inline-block", width:10, height:10, background:"#cbd5e1", borderRadius:2, marginRight:6 }}></span> Other samples</div>
             <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
               Circles = pieces of DNA. Lines = connections.
+              Hover over a circle for details.
+              Bigger circles = longer DNA pieces.
               Branches = places where people differ.
             </div>
           </div>
@@ -222,7 +240,10 @@ export default function Home() {
 
     return (
       <section className="section">
-        <h2 style={{ fontSize: 24, marginBottom: 16 }}>Compare Haplotypes</h2>
+        <h2 style={{ fontSize: 24, marginBottom: 8 }}>Compare Two People</h2>
+        <p style={{ color: "#64748b", fontSize: 14, marginTop: 0, marginBottom: 16 }}>
+          Pick two people and see how much of their DNA is shared vs. unique.
+        </p>
         <div className="compare-layout">
           <div className="compare-panel">
             <h4>Sample A</h4>
@@ -237,7 +258,7 @@ export default function Home() {
               ))}
             </div>
             {sg && <div className="card">
-              <div className="inspector-row"><span>Path length</span><span>{sg.path?.length_bp ?? 0} bp</span></div>
+              <div className="inspector-row"><span>Path length</span><span>{(sg.path?.length_bp ?? 0).toLocaleString()} bp</span></div>
               <div className="inspector-row"><span>Nodes</span><span>{sg.nodes?.length ?? 0}</span></div>
               <div className="inspector-row"><span>Edges</span><span>{sg.edges?.length ?? 0}</span></div>
             </div>}
@@ -255,7 +276,7 @@ export default function Home() {
               ))}
             </div>
             {sgB && <div className="card">
-              <div className="inspector-row"><span>Path length</span><span>{sgB.path?.length_bp ?? 0} bp</span></div>
+              <div className="inspector-row"><span>Path length</span><span>{(sgB.path?.length_bp ?? 0).toLocaleString()} bp</span></div>
               <div className="inspector-row"><span>Nodes</span><span>{sgB.nodes?.length ?? 0}</span></div>
               <div className="inspector-row"><span>Edges</span><span>{sgB.edges?.length ?? 0}</span></div>
             </div>}
@@ -263,17 +284,24 @@ export default function Home() {
         </div>
         {sg && sgB && (
           <div className="card" style={{ marginTop: 16 }}>
-            <h4 style={{ marginBottom: 12 }}>Comparison</h4>
+            <h4 style={{ marginBottom: 4 }}>How They Differ</h4>
+            <p style={{ fontSize: 12, color: "#64748b", marginTop: 0, marginBottom: 12 }}>
+              Each bar = the DNA pieces that make up that person. Green = pieces they share.
+            </p>
             {!sameGraphSpace && (
               <p style={{ fontSize: 13, color: "#f59e0b", marginBottom: 12 }}>
-                ⚠ Direct node comparison across independent graph namespaces may be misleading.
+                ⚠ These two were built in separate graphs, so the numbers are approximate.
               </p>
             )}
-            <div className="inspector-row"><span>Shared nodes</span><span>{shared ?? "—"}</span></div>
-            <div className="inspector-row"><span>Only in A</span><span>{onlyA ?? "—"}</span></div>
-            <div className="inspector-row"><span>Only in B</span><span>{onlyB ?? "—"}</span></div>
-            {sharePct != null && <div className="inspector-row"><span>Shared %</span><span>{sharePct}%</span></div>}
-            <div className="inspector-row"><span>Same graph space</span><span>{sameGraphSpace ? "Yes" : "No"}</span></div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                <span>Shared</span><span>{shared ?? "—"} pieces ({sharePct ?? "—"}%)</span>
+              </div>
+              <div className="share-bar"><div className="share-bar-fill" style={{ width: `${sharePct ?? 0}%` }} /></div>
+            </div>
+            <div className="inspector-row"><span>Shared DNA pieces</span><span>{shared ?? "—"}</span></div>
+            <div className="inspector-row"><span>Only in {selSample}</span><span>{onlyA ?? "—"}</span></div>
+            <div className="inspector-row"><span>Only in {selSampleB}</span><span>{onlyB ?? "—"}</span></div>
           </div>
         )}
       </section>
