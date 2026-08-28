@@ -45,11 +45,13 @@ export default function Home() {
   const [selHapB, setSelHapB] = useState("1");
   const [sgB, setSGB] = useState<SampleGraph | null>(null);
 
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
   useEffect(() => {
     Promise.allSettled([
-      fetch("/data/manifest.json").then(r => (r.ok ? r.json() : Promise.reject())),
-      fetch("/data/latest.json").then(r => (r.ok ? r.json() : Promise.reject())),
-      fetch("/data/overview.json").then(r => (r.ok ? r.json() : Promise.reject())),
+      fetch(`${basePath}/data/manifest.json`).then(r => (r.ok ? r.json() : Promise.reject())),
+      fetch(`${basePath}/data/latest.json`).then(r => (r.ok ? r.json() : Promise.reject())),
+      fetch(`${basePath}/data/overview.json`).then(r => (r.ok ? r.json() : Promise.reject())),
     ]).then(([m, l, o]) => {
       if (m.status === "fulfilled") {
         setManifest(m.value);
@@ -63,19 +65,19 @@ export default function Home() {
   }, []);
 
   const loadGraph = useCallback(() => {
-    fetch(`/data/graphs/${graphMode}/${selSample}_${selHap}.json`)
+    fetch(`${basePath}/data/graphs/${graphMode}/${selSample}_${selHap}.json`)
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then((g: SampleGraph) => { setSG(g); setLoading(false); })
       .catch(() => { setSG(null); setLoading(false); });
-  }, [graphMode, selSample, selHap]);
+  }, [basePath, graphMode, selSample, selHap]);
 
   useEffect(() => { loadGraph(); }, [loadGraph]);
   const loadGraphB = useCallback(() => {
-    fetch(`/data/graphs/${graphMode}/${selSampleB}_${selHapB}.json`)
+    fetch(`${basePath}/data/graphs/${graphMode}/${selSampleB}_${selHapB}.json`)
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then((g: SampleGraph) => setSGB(g))
       .catch(() => setSGB(null));
-  }, [graphMode, selSampleB, selHapB]);
+  }, [basePath, graphMode, selSampleB, selHapB]);
   useEffect(() => { loadGraphB(); }, [loadGraphB]);
 
   const samples: { sample: string; haplotypes: string[]; hap_labels?: Record<string, string> }[] =
