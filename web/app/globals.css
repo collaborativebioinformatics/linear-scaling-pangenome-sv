@@ -362,6 +362,30 @@ pre, code {
   background: linear-gradient(135deg, #0f172a 0%, #1e40af 50%, #3b82f6 100%);
 }
 
+.compare-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.compare-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.compare-panel h4 {
+  font-size: 14px;
+  margin: 0 0 8px;
+  color: #1e293b;
+  border-bottom: 2px solid #3b82f6;
+  padding-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .compare-layout { grid-template-columns: 1fr; }
+}
 @media (max-width: 768px) {
   .steps-grid { grid-template-columns: 1fr; }
 }

@@ -39,7 +39,7 @@ Legend: **Implemented** = code exists and wired; **Static** = source/type checks
 | Graph explorer | PASS | PASS | PASS | N/A | N/A | PASS |
 | Dashboard | PASS | PASS | PASS | N/A | N/A | PASS |
 | Chunks | PASS | PASS | PASS | N/A | N/A | PASS |
-| Compare | PARTIAL (stub) | PASS | PASS | N/A | N/A | PARTIAL |
+| Compare | PASS | PASS | PASS | N/A | N/A | PASS |
 | Vercel readiness | PASS | PASS | PASS | N/A | N/A | PASS |
 
 ## What Was Fixed In This Audit

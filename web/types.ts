@@ -24,6 +24,7 @@ export interface GraphEdge {
 
 export interface SampleGraph {
   schema_version: string;
+  graph: string;
   sample: string; haplotype: string; path_name: string;
   nodes: GraphNode[]; edges: GraphEdge[];
   path: { steps: { node: string; orientation: string }[]; length_bp: number };

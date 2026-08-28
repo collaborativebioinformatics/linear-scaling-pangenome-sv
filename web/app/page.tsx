@@ -39,6 +39,9 @@ export default function Home() {
   const [graphMode, setGraphMode] = useState("baseline");
   const [selSample, setSelSample] = useState("GRCh38");
   const [selHap, setSelHap] = useState("0");
+  const [selSampleB, setSelSampleB] = useState("HG00673");
+  const [selHapB, setSelHapB] = useState("1");
+  const [sgB, setSGB] = useState<SampleGraph | null>(null);
 
   useEffect(() => {
     Promise.allSettled([
@@ -65,6 +68,13 @@ export default function Home() {
   }, [graphMode, selSample, selHap]);
 
   useEffect(() => { loadGraph(); }, [loadGraph]);
+  const loadGraphB = useCallback(() => {
+    fetch(`/data/graphs/${graphMode}/${selSampleB}_${selHapB}.json`)
+      .then(r => (r.ok ? r.json() : Promise.reject()))
+      .then((g: SampleGraph) => setSGB(g))
+      .catch(() => setSGB(null));
+  }, [graphMode, selSampleB, selHapB]);
+  useEffect(() => { loadGraphB(); }, [loadGraphB]);
 
   const samples: { sample: string; haplotypes: string[]; hap_labels?: Record<string, string> }[] =
     manifest?.samples?.length ? manifest.samples : FALLBACK_SAMPLES;
@@ -167,24 +177,75 @@ export default function Home() {
     </section>
   );
 
-  const renderCompare = () => (
-    <section className="section">
-      <h2>Compare Haplotypes</h2>
-      <p>Select samples in the sidebar to compare path lengths and node counts.</p>
-      {sg && (
-        <div className="grid-2">
-          <div className="card"><h3>{selSample} (hap {selHap})</h3>
-            <p>Path length: {sg.path?.length_bp ?? 0} bp</p>
-            <p>Nodes on path: {sg.path?.steps?.length ?? 0}</p>
-            <p>Total: {sg.nodes?.length ?? 0} nodes / {sg.edges?.length ?? 0} edges</p>
+  const renderCompare = () => {
+    const hapLabelsB: Record<string, string> = samples.find(s => s.sample === selSampleB)?.hap_labels || {};
+    const idA = new Set((sg?.nodes || []).map(n => n.id));
+    const idB = new Set((sgB?.nodes || []).map(n => n.id));
+    const shared = sg && sgB ? Array.from(idA).filter(id => idB.has(id)).length : null;
+    const onlyA = sg && sgB ? Array.from(idA).filter(id => !idB.has(id)).length : null;
+    const onlyB = sg && sgB ? Array.from(idB).filter(id => !idA.has(id)).length : null;
+    const sameGraphSpace = sg && sgB && sg.graph === sgB.graph;
+    const sharePct = shared != null && sg && sgB ? Math.round(shared / Math.max(idA.size, idB.size, 1) * 100) : null;
+
+    return (
+      <section className="section">
+        <h2 style={{ fontSize: 24, marginBottom: 16 }}>Compare Haplotypes</h2>
+        <div className="compare-layout">
+          <div className="compare-panel">
+            <h4>Sample A</h4>
+            <select value={selSample} onChange={e => { setSelSample(e.target.value); setSelHap(samples.find(s => s.sample === e.target.value)?.haplotypes[0] || "0"); }}
+              style={{ width: "100%", padding: 6, marginBottom: 8, border: "1px solid #cbd5e1", borderRadius: 4 }}>
+              {samples.map(s => <option key={s.sample} value={s.sample}>{s.sample}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+              {(samples.find(s => s.sample === selSample)?.haplotypes || []).map(h => (
+                <button key={h} onClick={() => setSelHap(h)}
+                  className={"hap-btn" + (selHap === h ? " active" : "")}>{hapLabels[h] || h}</button>
+              ))}
+            </div>
+            {sg && <div className="card">
+              <div className="inspector-row"><span>Path length</span><span>{sg.path?.length_bp ?? 0} bp</span></div>
+              <div className="inspector-row"><span>Nodes</span><span>{sg.nodes?.length ?? 0}</span></div>
+              <div className="inspector-row"><span>Edges</span><span>{sg.edges?.length ?? 0}</span></div>
+            </div>}
           </div>
-          <div className="card"><h3>Reference (GRCh38)</h3>
-            <p style={{ color: "#94a3b8" }}>Switch selection to compare against another haplotype.</p>
+          <div className="compare-panel">
+            <h4>Sample B</h4>
+            <select value={selSampleB} onChange={e => { setSelSampleB(e.target.value); setSelHapB(samples.find(s => s.sample === e.target.value)?.haplotypes[0] || "0"); }}
+              style={{ width: "100%", padding: 6, marginBottom: 8, border: "1px solid #cbd5e1", borderRadius: 4 }}>
+              {samples.map(s => <option key={s.sample} value={s.sample}>{s.sample}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+              {(samples.find(s => s.sample === selSampleB)?.haplotypes || []).map(h => (
+                <button key={h} onClick={() => setSelHapB(h)}
+                  className={"hap-btn" + (selHapB === h ? " active" : "")}>{hapLabelsB[h] || h}</button>
+              ))}
+            </div>
+            {sgB && <div className="card">
+              <div className="inspector-row"><span>Path length</span><span>{sgB.path?.length_bp ?? 0} bp</span></div>
+              <div className="inspector-row"><span>Nodes</span><span>{sgB.nodes?.length ?? 0}</span></div>
+              <div className="inspector-row"><span>Edges</span><span>{sgB.edges?.length ?? 0}</span></div>
+            </div>}
           </div>
         </div>
-      )}
-    </section>
-  );
+        {sg && sgB && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <h4 style={{ marginBottom: 12 }}>Comparison</h4>
+            {!sameGraphSpace && (
+              <p style={{ fontSize: 13, color: "#f59e0b", marginBottom: 12 }}>
+                ⚠ Direct node comparison across independent graph namespaces may be misleading.
+              </p>
+            )}
+            <div className="inspector-row"><span>Shared nodes</span><span>{shared ?? "—"}</span></div>
+            <div className="inspector-row"><span>Only in A</span><span>{onlyA ?? "—"}</span></div>
+            <div className="inspector-row"><span>Only in B</span><span>{onlyB ?? "—"}</span></div>
+            {sharePct != null && <div className="inspector-row"><span>Shared %</span><span>{sharePct}%</span></div>}
+            <div className="inspector-row"><span>Same graph space</span><span>{sameGraphSpace ? "Yes" : "No"}</span></div>
+          </div>
+        )}
+      </section>
+    );
+  };
 
   return (<>
       {/* ===== HERO ===== */}
@@ -217,23 +278,9 @@ export default function Home() {
           </div>
         </div>
       </section>
-    <main className="container" style={{ padding: "40px 20px" }}>
-      <header className="header">
-        <h1>Parallel Pangenome Explorer</h1>
-        <p>Explore haplotypes traversing independently constructed pangenome graph regions</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <span className={"badge " + (dataMode === "synthetic" ? "badge-demo" : "badge-real")}>
-            {dataMode === "synthetic" ? "DEMO / SYNTHETIC DATA" : "REAL HPRC DATA"}
-          </span>
-          <span className="badge badge-ok">BASELINE: {manifest?.pipeline_status?.baseline || "OK"}</span>
-          <span className="badge badge-ok">CHUNKS: {manifest?.pipeline_status?.parallel_chunks || "OK"}</span>
-          <span className="badge badge-warn">STITCH: {manifest?.pipeline_status?.stitch || latest?.stitch?.status || "NOT_RUN"}</span>
-          <span className={"badge " + (latest?.equivalence?.verdict === "EQUIVALENT" ? "badge-ok" : "badge-warn")}>
-            EQUIVALENCE: {latest?.equivalence?.verdict || "NOT_RUN"}
-          </span>
-        </div>
-      </header>
-      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+
+      <div className="container" style={{ padding: "32px 20px 0" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
         {["explore", "dashboard", "chunks", "compare"].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={"graph-btn" + (tab === t ? " active" : "")}>
@@ -245,7 +292,7 @@ export default function Home() {
       {tab === "dashboard" && renderDashboard()}
       {tab === "chunks" && renderChunks()}
       {tab === "compare" && renderCompare()}
-    </main>
+    </div>
   </>);
 }
 
