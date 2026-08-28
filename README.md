@@ -8,7 +8,7 @@
 # Local synthetic demo (no DNAnexus needed)
 make check      # Check environment
 make demo       # Generate synthetic data, build GFAs, stitch, export web JSON
-make test       # Run 167 tests
+make test       # Run 173 tests
 make web        # Start Next.js dev server at http://localhost:3000
 ```
 

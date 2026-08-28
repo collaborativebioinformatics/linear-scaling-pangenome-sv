@@ -40,23 +40,106 @@ main() {
     START=$(date +%s)
     mkdir -p output
 
-    # PGGB requires samtools faidx next to the FASTA. Mount the workdir so
-    # the .fai can be written, then index + build in one container.
+    # Two-pass PGGB with detailed pass fixed for small inputs.
+    # Baseline works because pass 1 (--approx-map) doesn't cover all 5 Mb.
+    # Small chunks fail because pass 1 covers all 2.1 Mb, leaving pass 2
+    # (--invert-filtering) with nothing to align → 0 links.
+    # Fix: Remove --invert-filtering from pass 2 so it DETAILS what pass 1 FOUND.
+    cat > /tmp/chunk_pipeline.sh << 'HEREDOC_END'
+#!/usr/bin/env bash
+set -euo pipefail
+set -x
+echo "=== Chunk PGGB (two-pass, detailed aligns what pass1 found) ==="
+
+# 1. Index
+samtools faidx /data/input.fa
+echo "[1/7] samtools faidx done"
+
+# 2. Pass 1: approximate mappings (same as baseline)
+wfmash -s __SEGLEN__ -l 25000 -p __PID__ -n 1 \
+    -k __KMER__ -H 0.001 -Y '#' \
+    -t __THREADS__ --tmp-base /data/output \
+    /data/input.fa \
+    --hg-filter-ani-diff 30 --approx-map \
+    > /data/output/mappings.paf \
+    2> /data/output/pass1.stderr
+echo "[2/7] pass1 mappings done ($(wc -l < /data/output/mappings.paf) records)"
+
+# 3. Pass 2: DETAILED alignment on what pass 1 FOUND (no --invert-filtering!)
+wfmash -s __SEGLEN__ -l 25000 -p __PID__ -n 1 \
+    -k __KMER__ -H 0.001 -Y '#' \
+    -t __THREADS__ --tmp-base /data/output \
+    /data/input.fa \
+    --lower-triangular --hg-filter-ani-diff 30 \
+    -i /data/output/mappings.paf \
+    > /data/output/alignments.paf \
+    2> /data/output/pass2.stderr
+echo "[3/7] pass2 detailed done ($(wc -l < /data/output/alignments.paf) records)"
+
+# Gate: refuse empty PAF
+if [ ! -s /data/output/alignments.paf ]; then
+    echo "FATAL EMPTY_ALIGNMENT_PAF"
+    exit 1
+fi
+
+# 4. seqwish
+seqwish -s /data/input.fa \
+    -p /data/output/alignments.paf \
+    -k __MATCHLEN__ -f 0 \
+    -g /data/output/seqwish.gfa \
+    -B 10M -t __THREADS__ \
+    --temp-dir /data/output -P
+echo "[4/7] seqwish done"
+
+# 5. smoothxg (exact baseline flags)
+smoothxg -t __THREADS__ -T __THREADS__ \
+    -g /data/output/seqwish.gfa \
+    -r __NPATHS__ \
+    --base /data/output \
+    --chop-to 100 \
+    -I .9000 -R 0 \
+    -j __PJUMP__ -e __EJUMP__ \
+    -l 700,1100 -p 1,4,6,2,26,1 \
+    -O 0.001 -Y 500 -d 0 -D 0 \
+    -Q Consensus_ -V \
+    -o /data/output/smooth.gfa
+echo "[5/7] smoothxg done"
+
+# 6-7. odgi
+odgi build -g /data/output/smooth.gfa \
+    -o /data/output/graph.og -t __THREADS__ -P
+odgi sort -i /data/output/graph.og \
+    -o /data/output/graph.sorted.og \
+    -p Ygs -t __THREADS__ -P
+odgi view -i /data/output/graph.sorted.og \
+    -g > /data/output/final.gfa
+echo "[6/7] odgi done — final.gfa written"
+HEREDOC_END
+
+    sed -i \
+        -e "s/__SEGLEN__/${SEG_LEN}/g" -e "s/__PID__/${MIN_ID}/g" \
+        -e "s/__KMER__/${MASH_KMER}/g" -e "s/__MATCHLEN__/${MATCH_LEN}/g" \
+        -e "s/__PJUMP__/${PATH_JUMP}/g" -e "s/__EJUMP__/${EDGE_JUMP}/g" \
+        -e "s/__THREADS__/${THREADS}/g" -e "s/__NPATHS__/${NUM_PATHS}/g" \
+        /tmp/chunk_pipeline.sh
+
+    chmod +x /tmp/chunk_pipeline.sh
+
     docker run --rm \
         -v "$PWD":/data \
+        -v /tmp/chunk_pipeline.sh:/data/pipeline.sh:ro \
         "$PGGB_IMAGE" \
-        bash -lc "samtools faidx /data/input.fa && pggb \
-            -i /data/input.fa \
-            -o /data/output \
-            -t $THREADS \
-            -n $NUM_PATHS \
-            -p $MIN_ID \
-            -s $SEG_LEN \
-            -K $MASH_KMER \
-            -k $MATCH_LEN \
-            -j $PATH_JUMP \
-            -e $EDGE_JUMP" \
-            2>&1 | tee pggb.log
+        bash /data/pipeline.sh \
+        2>&1 | tee pggb.log
+
+    # Validate edges exist
+    if ! grep -q '^L' output/final.gfa 2>/dev/null; then
+        echo "FATAL INVALID_ZERO_EDGE_GRAPH"
+        ls -la output/ 2>/dev/null || true
+        exit 1
+    fi
+    EDGE_COUNT=$(grep -c '^L' output/final.gfa)
+    echo "  Graph has $EDGE_COUNT L-records"
 
     END=$(date +%s)
     END_TS=$(date -u +"%Y-%m-%dT%H:%M:%S")
