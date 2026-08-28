@@ -30,7 +30,7 @@ linear: dipcall
 dipcall:;	@bash pipeline/linear/run_dipcall.sh
 svim-asm:;	@bash pipeline/linear/run_svim_asm.sh
 variants:;	@bash pipeline/benchmark/benchmark_variants.sh
-benchmark:;	@python3 pipeline/benchmark/graph_stats.py && python3 pipeline/benchmark/compare_paths.py && bash pipeline/benchmark/benchmark_variants.sh 2>/dev/null || true && python3 pipeline/benchmark/build_report.py
+benchmark:;	@python3 pipeline/benchmark/graph_stats.py && python3 pipeline/benchmark/compare_paths.py && python3 pipeline/benchmark/build_report.py
 
 clean:;	@rm -rf results/* work/* web/public/data/baseline.json web/public/data/merged.json && echo "Cleaned"
 deploy:;	@cd web && npx vercel --prod

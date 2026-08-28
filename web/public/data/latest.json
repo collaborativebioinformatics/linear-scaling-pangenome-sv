@@ -6,7 +6,7 @@
     "mode": "demo",
     "data_mode": "synthetic",
     "strategy": "overlap_aware",
-    "timestamp": "2026-08-27T21:36:15.173217"
+    "timestamp": "2026-08-27T21:57:34.791717"
   },
   "target": {
     "reference": "GRCh38",

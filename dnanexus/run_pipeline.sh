@@ -3,7 +3,7 @@
 # Auto-detects $HOME/.pipeline-env/bin venv if present.
 # Flow: environment -> HPRC manifest -> stage inputs -> interval map ->
 #       baseline PGGB (DNAnexus applet) -> chunk FASTAs ->
-#       DNAnexus parallel chunk PGGB -> merge (diagnostic) ->
+#       DNAnexus parallel chunk PGGB -> merge (overlap_aware stitch) ->
 #       benchmark -> web JSON
 set -euo pipefail
 
@@ -153,20 +153,23 @@ python3 pipeline/parallel/build_all_chunks.py
 echo "[6b/9] Launching parallel chunk PGGB on DNAnexus"
 bash dnanexus/run_parallel_chunks.sh
 
-echo "[7/9] Merge (diagnostic disjoint union only — NOT_IMPLEMENTED)"
+echo "[7/9] Merge (overlap-aware stitch)"
 python3 pipeline/merge/merge_graphs.py
 MERGED_GFA="results/merge/merged.gfa"
 
 echo "[8/9] Benchmark"
-# While stitch NOT_IMPLEMENTED: baseline/chunk stats only
 python3 pipeline/benchmark/graph_stats.py
-echo "  compare_paths: NOT_RUN (stitch NOT_IMPLEMENTED)"
-echo "  variant_equivalence: NOT_RUN (stitch NOT_IMPLEMENTED)"
+if [ -f "$BASELINE_GFA" ] && [ -f "$MERGED_GFA" ]; then
+    python3 pipeline/benchmark/compare_paths.py
+    echo "  path comparison: RUN (baseline + merged present)"
+else
+    echo "  path comparison: NOT_RUN (missing baseline or merged GFA)"
+fi
 python3 pipeline/benchmark/build_report.py
 
 echo "[9/9] Web JSON — compact bounded JSON only, no large GFA copy"
 python3 pipeline/export/gfa_to_json.py "$BASELINE_GFA" --output "web/public/data/baseline.json" --label "baseline" 2>/dev/null || true
-[ -f "$MERGED_GFA" ] && python3 pipeline/export/gfa_to_json.py "$MERGED_GFA" --output "web/public/data/merged_diagnostic.json" --label "merged_diagnostic" 2>/dev/null || true
+[ -f "$MERGED_GFA" ] && python3 pipeline/export/gfa_to_json.py "$MERGED_GFA" --output "web/public/data/merged.json" --label "merged" 2>/dev/null || true
 python3 scripts/sync_web_results.py 2>/dev/null || true
 
 echo ""
@@ -174,13 +177,19 @@ echo "=== Pipeline Summary ==="
 echo "  baseline: PASS"
 echo "  chunks: PASS"
 echo "  parallel_execution: PASS"
-echo "  stitch: NOT_IMPLEMENTED"
-echo "  equivalence: NOT_RUN"
+if [ -f "results/merge/boundary_report.tsv" ]; then
+    BR_PASS=$(grep -c $'\tPASS$' "results/merge/boundary_report.tsv" 2>/dev/null || echo 0)
+    BR_TOTAL=$(tail -n +2 "results/merge/boundary_report.tsv" 2>/dev/null | wc -l | tr -d ' ')
+    echo "  stitch: IMPLEMENTED (boundaries $BR_PASS/$BR_TOTAL PASS)"
+else
+    echo "  stitch: IMPLEMENTED (no boundary report produced)"
+fi
+echo "  equivalence: NOT_RUN (requires real baseline + real stitched graph)"
 echo "  overall_status: PARTIAL"
-echo "  (Overlap-aware stitching not yet implemented. Merged graph is diagnostic disjoint union only.)"
+echo "  (Overlap-aware stitch implemented and synthetic-validated. Real HPRC validation pending.)"
 echo ""
 echo "  Baseline: $BASELINE_GFA"
-echo "  Merged (diagnostic): ${MERGED_GFA:-N/A}"
+echo "  Merged: ${MERGED_GFA:-N/A}"
 
 if [ "$UPLOAD" = "--upload" ]; then
     dx upload results/merge/merged.gfa --destination /graphs/merged/ 2>/dev/null || true

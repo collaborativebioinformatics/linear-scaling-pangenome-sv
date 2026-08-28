@@ -46,8 +46,9 @@ def main():
 
 
 def guard_no_genomic(path):
-    """Refuse GFA/FASTA/VCF files in web/public."""
-    forbidden = [".gfa", ".fa", ".fasta", ".vcf", ".vcf.gz", ".fa.gz", ".gfa.gz"]
+    """Refuse GFA/FASTA/VCF/BAM/CRAM files in web/public."""
+    forbidden = [".gfa", ".fa", ".fasta", ".vcf", ".vcf.gz", ".fa.gz",
+                 ".fasta.gz", ".gfa.gz", ".bam", ".cram"]
     ext = os.path.splitext(path)[1].lower()
     if ext in forbidden or any(path.endswith(e) for e in forbidden):
         print(f"  BLOCKED: {path} - genomic files not allowed in web/public/")
