@@ -43,7 +43,7 @@ Full editable deck: [`methods_slides.pptx`](methods_slides.pptx)
 
 | Person | Primary Area | What They Are Working On |
 |--------|-------------|--------------------------|
-| **Quang** | Pipeline architecture + graph merging | 🔴 **Q1 (HARD BLOCKER):** Overlap-aware stitch integration. Fix `setup_demo.py` config reading, `_load_chunks` path, and `chunk_rows` parameter. Merge `quang-overlap-aware-merge` branch to main. |
+| **Quang** | Pipeline architecture + graph merging | ✅ **Q1–Q3:** overlap-aware stitch, `tests/test_merge.py`, boundary report. `make demo` → Strategy: overlap_aware, EQUIVALENT, 5 components. |
 | **Michael** | Pangenome graph construction | M1: Run real PGGB applet on DNAnexus (micro-test). M2/M3: Build baseline + chunk graphs on DNAnexus. M4: Full 1 Mb smoke test. |
 | **Khoi** | Pipeline + linear/assembly workflow | K1: Dipcall wrapper validation. K2: SVIM-asm wrapper. K3: Truvari variant comparison. K4: Method documentation. |
 | **Ali** | Pipeline + DNAnexus + integration + web | ✅ A1-A5 complete. 🔵 **A6-A10 (current):** Web visualization — data export pipeline, benchmark display, chunk visualization, compare mode, Vercel deploy. |
@@ -84,12 +84,12 @@ Want to work on writing / presentation?
 HPRC Release 2 (4 haplotypes + GRCh38)
   -> minimap2 interval mapping
   -> monolithic PGGB (baseline)  OR  chunk PGGB (parallel)
-  -> merge (NOT_IMPLEMENTED - disjoint union only)
+  -> merge (overlap-aware stitch)
   -> validation & benchmark
   -> JSON -> web
 ```
 
-**Merge status:** NOT_IMPLEMENTED. Current merged graph is disjoint union only (diagnostic). Overlap-aware stitching is the next algorithm milestone.
+**Merge status:** overlap-aware stitch is on main (`pipeline/merge/merge_graphs.py`). `make demo` prints `Strategy: overlap_aware` and an EQUIVALENT 5-component graph. Disjoint union remains as a diagnostic strategy.
 
 ---
 
@@ -101,17 +101,17 @@ HPRC Release 2 (4 haplotypes + GRCh38)
 | GFA parser | ✅ | Parse, dump, roundtrip, file I/O |
 | Chunking | ✅ | Overlapping chunks, configurable pairwise overlap |
 | Merge (disjoint union) | ✅ | Namespace-safe concatenation, diagnostic only |
-| Overlap-aware stitch | 🟡 NOT_IMPLEMENTED | Algorithm exists on quang branch, needs integration (Q1) |
+| Overlap-aware stitch | ✅ | `overlap_aware_stitch()`; `make demo` EQUIVALENT, 5 components |
 | Synthetic demo | ✅ | `make demo` generates full vertical slice |
-| Tests | ✅ 105 pass, 2 skip | GFA, chunking, merge, interval mapping, W-line, provenance, graph stats |
+| Tests | ✅ | GFA, chunking, merge (`tests/test_merge.py`), interval mapping, W-line, provenance, graph stats |
 | Web explorer | ✅ Interactive | Cytoscape.js graph, sample/haplotype selector, inspector, 4 tabs |
 | Web JSON guard | ✅ | `guard_no_genomic()` blocks GFA/FASTA/VCF |
 | DNAnexus applets | ✅ Built | `pggb_chunk` + `pggb_baseline`, instance `mem3_ssd1_v2_x16` |
 | DNAnexus dry-run | ✅ | 3 chunks validated, FATAL checks verified |
 | Graph statistics | ✅ | Full topology, comparison, TSV export |
 | Environment checker | ✅ | Pipeline-tiered: REQUIRED / CONTAINER / WEB_OPTIONAL |
-| Stitch boundary validation | 🟡 NOT_RUN | Requires Q1 first |
-| Equivalence validation | 🟡 NOT_RUN | Requires Q1 + M1-M4 first |
+| Stitch boundary validation | ✅ | `results/merge/boundary_report.tsv`; per-haplotype PASS/FAIL |
+| Equivalence validation | ✅ synthetic / 🟡 independent chunks | `make demo` EQUIVALENT; 1 Mb HPRC windowed stitch EQUIVALENT; independent chunk PGGB still M3 |
 | Variant comparison | 🟡 NOT_RUN | Requires K1-K3 first |
 ---
 
@@ -148,7 +148,7 @@ bash dnanexus/run_pipeline.sh --upload  # Full pipeline
 
 ## What To Do Next (Pre-Submission)
 
-All 19 P0 audit items are fixed. Below is the exact pre-submission task list broken down per person. **Do not launch PGGB on real data until the stitch is implemented.**
+All 19 P0 audit items are fixed. Below is the exact pre-submission task list broken down per person. Stitch is implemented. Independent per-chunk PGGB on DNAnexus (`/data/prepared/chunks/*.fa`) is unblocked.
 
 ### Quang — Merge Algorithm (P0, highest priority)
 
@@ -156,9 +156,9 @@ Stitch is the single critical unimplemented component.
 
 | # | Task | Area | Instructions |
 |---|------|------|-------------|
-| Q1 | **Overlap-aware stitch** | `pipeline/merge/merge_graphs.py` | Replace `NOT_IMPLEMENTED` path with real `overlap_aware_stitch()`. Algorithm: (1) load two adjacent chunk GFAs, (2) find common subpath in the overlap region per haplotype, (3) weld by merging shared segment IDs, (4) write stitched output to `results/merge/merged.gfa`. |
-| Q2 | **Stitch tests** | `tests/test_merge.py` | Test stitch on small overlapping GFAs: path continuity, sequence identity across boundary, no orphan nodes. |
-| Q3 | **Boundary report** | `pipeline/merge/validate_merge.py` | Per-haplotype stitch success/failure, base-level identity across boundary. |
+| Q1 | **Overlap-aware stitch** | `pipeline/merge/merge_graphs.py` | **DONE.** `overlap_aware_stitch()`; `make demo` writes `results/merge/merged.gfa`. |
+| Q2 | **Stitch tests** | `tests/test_merge.py` | **DONE.** Path continuity, sequence identity, no invented gap edges, demo EQUIVALENT. |
+| Q3 | **Boundary report** | `pipeline/merge/validate_merge.py` | **DONE.** Per-haplotype PASS/FAIL + `results/merge/boundary_report.tsv`. |
 
 ### Michael — PGGB + Graph Validation (P0)
 
@@ -185,7 +185,7 @@ Stitch is the single critical unimplemented component.
 | A1 | **Baseline applet test** | `dnanexus/applets/pggb_baseline/` | Build: `dx build --brief`. Verify same instance type as chunk (`mem3_ssd1_v2_x16`). |
 | A2 | **Orchestration dry run** | `dnanexus/run_parallel_chunks.sh` | Verify expected=local=uploaded=submitted=downloaded. Simulate missing FASTA, verify FATAL. |
 | A3 | **Timing dashboard** | `dnanexus/run_parallel_chunks.sh` | Review `graph_parallel_wall_seconds` (max stop - min start) and `sum_worker_seconds`. |
-| A4 | **Web stitch status** | `web/app/page.tsx` | Show `stitch: NOT_IMPLEMENTED` badge. Label merged graph as "diagnostic only". |
+| A4 | **Web stitch status** | `web/app/page.tsx` | Reads `latest.json` stitch/equivalence badges (`PASS` / `EQUIVALENT` after `make demo`). |
 | A5 | **Web JSON guard** | `scripts/sync_web_results.py` | Prevent accidental GFA copy into `web/public/data/`. Only compact JSON allowed. |
 
 ### Alexander — Documentation + Presentation (P0)
@@ -201,7 +201,7 @@ Stitch is the single critical unimplemented component.
 
 | # | Task | Who | Instructions |
 |---|------|-----|-------------|
-| S1 | **Integration test** | Quang + Michael + Ali | After Q1, run `make demo`. Verify baseline builds, chunks build, stitch merges, paths match. |
+| S1 | **Integration test** | Quang + Michael + Ali | **Quang part done:** `make demo` → Strategy: overlap_aware, 5 components, EQUIVALENT. |
 | S2 | **Final validation** | Everyone | `make check && make test` from clean checkout. All 55+ tests pass. CI on the merge commit. |
 | S3 | **Tag release** | Ali | Squash-merge working branch to main. Tag `v0.1.0-pre`. Do NOT launch real PGGB. |
 
@@ -226,8 +226,9 @@ Start with exact-match welding before attempting alignment-based welding for nea
 ### Submission Checklist
 
 ```
-☐ Q1: Stitch implemented and tested
-☐ Q2: Stitch tests pass
+☑ Q1: Stitch implemented and tested
+☑ Q2: Stitch tests pass
+☑ Q3: Boundary report
 ☐ M1: PGGB version verified
 ☐ K1: Dipcall wrapper complete
 ☐ K2: Variant comparison working
