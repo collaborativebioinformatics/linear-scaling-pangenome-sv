@@ -93,7 +93,7 @@ def walks_as_paths(g):
 
 
 def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
-                         chunk_rows=None):
+                         chunk_rows=None, chunk_mapping=None):
     """Stitch adjacent chunks into one graph across their reference overlap.
 
     Each haplotype is cut once inside every overlap and the two sides are
@@ -115,7 +115,7 @@ def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
     merged.headers = [Header(h.version, dict(h.metadata))
                       for h in chunk_graphs[0][1].headers] or [Header("1.1")]
 
-    groups = group_paths_by_haplotype(chunk_graphs, chunk_rows)
+    groups = group_paths_by_haplotype(chunk_graphs, chunk_rows, chunk_mapping)
     stitched, gaps = {}, {}
     for key, entries in groups.items():
         pieces, hap_gaps = stitch_haplotype(chunk_graphs, entries)
@@ -285,6 +285,14 @@ def _load_chunks(cm_path):
     return result, rows
 
 
+def _load_chunk_mapping(path="results/preparation/chunk_mapping.tsv"):
+    """Rows from chunk_mapping.tsv (source_start/source_end/strand per hap)."""
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return list(csv.DictReader(f, delimiter=T))
+
+
 def _write_boundary_report(boundaries, path):
     keys = [
         "boundary", "left_chunk", "right_chunk", "reference_overlap_bp",
@@ -316,7 +324,9 @@ def main():
         br = []
     else:
         obp = config.get("parallel", {}).get("overlap_bp", 100000)
-        merged, br = overlap_aware_stitch(chunks, overlap_bp=obp, chunk_rows=rows)
+        mapping = _load_chunk_mapping()
+        merged, br = overlap_aware_stitch(
+            chunks, overlap_bp=obp, chunk_rows=rows, chunk_mapping=mapping)
 
     os.makedirs(f"{rd}/merge", exist_ok=True)
     merged.write_gfa(f"{rd}/merge/merged.gfa")

@@ -837,3 +837,119 @@ class TestChunkOverlapMath:
             return
         raise AssertionError("expected ValueError for overlap >= chunk_size")
 
+
+class TestHPRCIndelCoordinates:
+    """Haplotype coordinates diverge from GRCh38 when the hap has an indel.
+
+    Real HPRC chunk FASTAs are named SAMPLE#HAP#CONTIG with no :start-end
+    subrange. The only absolute coordinates are source_start/source_end/strand
+    in chunk_mapping.tsv. Falling back to GRCh38 reference_start cuts the
+    haplotype at the wrong seam and drops the inserted bases.
+    """
+
+    REF = "ACGT" * 25          # 100 bp
+    INS = "NNNNNNNNNN"         # 10 bp insertion at ref pos 25
+    HAP = REF[:25] + INS + REF[25:]  # 110 bp
+
+    def _hap_chunk(self, cid, ref_s, ref_e, hap_s, hap_e):
+        g = GfaGraph()
+        g.headers.append(Header("1.1"))
+        rname, hname = f"{cid}_r", f"{cid}_h"
+        g.segments[rname] = Segment(rname, self.REF[ref_s:ref_e])
+        g.segments[hname] = Segment(hname, self.HAP[hap_s:hap_e])
+        g.paths["GRCh38#0#chr21"] = Path("GRCh38#0#chr21", [rname + "+"])
+        g.paths["HG1#1#chr21"] = Path("HG1#1#chr21", [hname + "+"])
+        return cid, g
+
+    def _mapping(self):
+        return [
+            {"chunk_id": "chunk_0001", "sample": "GRCh38", "haplotype": "0",
+             "source_start": 0, "source_end": 60, "strand": "+"},
+            {"chunk_id": "chunk_0001", "sample": "HG1", "haplotype": "1",
+             "source_start": 0, "source_end": 70, "strand": "+"},
+            {"chunk_id": "chunk_0002", "sample": "GRCh38", "haplotype": "0",
+             "source_start": 40, "source_end": 100, "strand": "+"},
+            {"chunk_id": "chunk_0002", "sample": "HG1", "haplotype": "1",
+             "source_start": 50, "source_end": 110, "strand": "+"},
+        ]
+
+    def _rows(self):
+        return {
+            "chunk_0001": {"reference_start": 0, "reference_end": 60},
+            "chunk_0002": {"reference_start": 40, "reference_end": 100},
+        }
+
+    def test_grch38_fallback_drops_the_insertion(self):
+        """If we placed the hap on GRCh38 coords, the 10 bp insert is lost."""
+        chunks = [
+            self._hap_chunk("chunk_0001", 0, 60, 0, 70),
+            self._hap_chunk("chunk_0002", 40, 100, 50, 110),
+        ]
+        m, _br = overlap_aware_stitch(chunks, chunk_rows=self._rows())
+        assert m.get_path_sequence("HG1#1#chr21") != self.HAP
+
+    def test_mapping_coords_preserve_haplotype_with_indel(self):
+        chunks = [
+            self._hap_chunk("chunk_0001", 0, 60, 0, 70),
+            self._hap_chunk("chunk_0002", 40, 100, 50, 110),
+        ]
+        m, br = overlap_aware_stitch(
+            chunks, chunk_rows=self._rows(), chunk_mapping=self._mapping())
+        assert m.get_path_sequence("GRCh38#0#chr21") == self.REF
+        assert m.get_path_sequence("HG1#1#chr21") == self.HAP
+        assert self.INS in m.get_path_sequence("HG1#1#chr21")
+        assert br[0]["status"] == "PASS"
+
+    def test_w_line_haplotype_coords_still_stitch(self):
+        """W-line SeqStart/SeqEnd are already haplotype coords — keep that."""
+        ref, hap = self.REF, self.HAP
+        def wchunk(cid, sample, hap_id, start, end, seq):
+            g = GfaGraph()
+            g.headers.append(Header("1.1"))
+            n = f"{cid}_{sample}"
+            g.segments[n] = Segment(n, seq)
+            g.walks.append(Walk(sample, hap_id, "chr21", start, end, path=[n + "+"]))
+            return cid, g
+
+        # Two overlapping W-line graphs per haplotype, merged by combining
+        # walks onto one graph per chunk.
+        c1, c2 = GfaGraph(), GfaGraph()
+        for g, cid, rs, re, hs, he in (
+                (c1, "chunk_0001", 0, 60, 0, 70),
+                (c2, "chunk_0002", 40, 100, 50, 110)):
+            g.headers.append(Header("1.1"))
+            rn, hn = f"{cid}_r", f"{cid}_h"
+            g.segments[rn] = Segment(rn, ref[rs:re])
+            g.segments[hn] = Segment(hn, hap[hs:he])
+            g.walks.append(Walk("GRCh38", "0", "chr21", rs, re, path=[rn + "+"]))
+            g.walks.append(Walk("HG1", "1", "chr21", hs, he, path=[hn + "+"]))
+        m, br = overlap_aware_stitch([("chunk_0001", c1), ("chunk_0002", c2)])
+        assert m.get_path_sequence("GRCh38#0#chr21") == ref
+        assert m.get_path_sequence("HG1#1#chr21") == hap
+        assert br[0]["status"] == "PASS"
+
+    def test_mapping_overrides_chunk_local_w_line_coords(self):
+        """PGGB W-lines on unsliced FASTA headers are 0-based in the chunk.
+
+        Absolute haplotype coordinates live in chunk_mapping.tsv. Mapping
+        must win over those chunk-local start/end values or an indel shifts
+        the seam onto the wrong bases.
+        """
+        ref, hap = self.REF, self.HAP
+        c1, c2 = GfaGraph(), GfaGraph()
+        for g, cid, rs, re, hs, he in (
+                (c1, "chunk_0001", 0, 60, 0, 70),
+                (c2, "chunk_0002", 40, 100, 50, 110)):
+            g.headers.append(Header("1.1"))
+            rn, hn = f"{cid}_r", f"{cid}_h"
+            g.segments[rn] = Segment(rn, ref[rs:re])
+            g.segments[hn] = Segment(hn, hap[hs:he])
+            g.walks.append(Walk("GRCh38", "0", "chr21", 0, re - rs, path=[rn + "+"]))
+            g.walks.append(Walk("HG1", "1", "chr21", 0, he - hs, path=[hn + "+"]))
+        m, br = overlap_aware_stitch(
+            [("chunk_0001", c1), ("chunk_0002", c2)],
+            chunk_rows=self._rows(), chunk_mapping=self._mapping())
+        assert m.get_path_sequence("GRCh38#0#chr21") == ref
+        assert m.get_path_sequence("HG1#1#chr21") == hap
+        assert br[0]["status"] == "PASS"
+

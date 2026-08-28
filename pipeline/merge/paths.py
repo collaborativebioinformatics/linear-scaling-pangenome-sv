@@ -20,20 +20,31 @@ independent chains.
 from pipeline.merge.gfa import GfaGraph, haplotype_key, parse_pansn
 
 
-def path_interval(graph, path_name, chunk_row=None):
+def path_interval(graph, path_name, chunk_row=None, mapping_row=None):
     """(start, end) of a chunk-local path on its own contig.
 
-    Prefers the `:start-end` subrange PGGB carries over from a sliced input
-    FASTA. Falls back to the chunk manifest's reference window, which is only
-    correct when haplotype coordinates equal reference coordinates (synthetic
-    demo data). Length always comes from the spelled path, never from the
-    manifest, so a path that stops short reports where it really stops.
+    Order of sources:
+      1. chunk_mapping.tsv source_start — real HPRC haplotype coordinates.
+         An indel makes these diverge from GRCh38; using the reference window
+         here cuts the hap at the wrong seam.
+      2. `:start-end` subrange on the path name (PGGB sliced FASTA, or a
+         W-line whose SeqStart/SeqEnd are already haplotype coordinates).
+      3. chunk manifest reference_start — only valid when haplotype coords
+         match the reference (synthetic demo data).
+
+    Length always comes from the spelled path, never from the tables, so a
+    path that stops short reports where it really stops. Mapping rows also
+    carry source_end and strand; those identify the interval, and the
+    sequence in the graph is already oriented.
     """
-    _s, _h, _c, start, end, _cid = parse_pansn(path_name)
-    if start is None:
+    _s, _h, _c, start, _end, _cid = parse_pansn(path_name)
+    if mapping_row is not None and mapping_row.get("source_start") not in (None, ""):
+        start = int(mapping_row["source_start"])
+    elif start is None:
         if chunk_row is None:
             raise ValueError(
-                f"path {path_name} has no subrange and no chunk manifest row")
+                f"path {path_name} has no subrange, no chunk_mapping row, "
+                f"and no chunk manifest row")
         start = int(chunk_row["reference_start"])
     return start, start + graph.path_length(path_name)
 
@@ -73,20 +84,39 @@ def slice_steps(graph, steps, start, keep_from, keep_to):
     return out
 
 
-def group_paths_by_haplotype(chunk_graphs, chunk_rows=None):
+def _index_mapping(chunk_mapping):
+    """{(chunk_id, sample, haplotype): row} from chunk_mapping.tsv records."""
+    if not chunk_mapping:
+        return {}
+    if isinstance(chunk_mapping, dict):
+        return chunk_mapping
+    return {(r["chunk_id"], r["sample"], str(r["haplotype"])): r
+            for r in chunk_mapping}
+
+
+def group_paths_by_haplotype(chunk_graphs, chunk_rows=None, chunk_mapping=None):
     """{(sample, hap, contig): [(chunk_id, path_name, (start, end))]} in order.
 
     chunk_graphs is [(chunk_id, GfaGraph)]; chunk_rows maps chunk_id to its
-    manifest row and may be omitted when the path names carry subranges.
+    manifest row; chunk_mapping is chunk_mapping.tsv rows (or a dict keyed
+    by (chunk_id, sample, haplotype)). Mapping is omitted when path names
+    already carry haplotype subranges.
     """
     rows = chunk_rows or {}
+    mapping = _index_mapping(chunk_mapping)
     groups = {}
     for cid, g in chunk_graphs:
         for pn in g.paths:
-            iv = path_interval(g, pn, rows.get(cid))
+            sample, hap, _c, _s, _e, _id = parse_pansn(pn)
+            map_row = mapping.get((cid, sample, str(hap)))
+            iv = path_interval(g, pn, rows.get(cid), map_row)
             groups.setdefault(haplotype_key(pn), []).append((cid, pn, iv))
     for key in groups:
-        groups[key].sort(key=lambda t: (t[2][0], t[0]))
+        groups[key].sort(key=lambda t: (
+            int(rows[t[0]]["reference_start"])
+            if t[0] in rows and rows[t[0]].get("reference_start") not in (None, "")
+            else t[2][0],
+            t[0]))
     return groups
 
 
