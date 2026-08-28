@@ -31,8 +31,18 @@ export default function GraphExplorer({
     const els: any[] = g.nodes.map((n: GraphNode) => ({
       group: "nodes",
       data: { id: n.id, label: n.id, length: n.length,
-        onPath: n.on_selected_path, onRef: n.on_reference, degree: n.degree },
-      classes: n.on_reference ? "onref" : n.on_selected_path ? "onpath" : "",
+        onPath: n.on_selected_path, isShared: n.is_shared, onRefPath: n.on_reference_path,
+        sampleCount: n.sample_count || 0, degree: n.degree,
+        // backward compat
+        onRef: !!(n.on_reference || n.is_shared || n.on_reference_path) },
+      classes: (() => {
+        const cls: string[] = [];
+        if (n.on_selected_path) cls.push("selected");
+        if (n.is_shared) cls.push("shared");
+        if (n.on_reference_path) cls.push("reference");
+        if (!n.on_selected_path && !n.is_shared) cls.push("neighbor");
+        return cls.join(" ");
+      })(),
     }));
     els.push(...g.edges.map((e: GraphEdge) => ({
       group: "edges",
@@ -58,14 +68,22 @@ export default function GraphExplorer({
             height: (el: any) => nodeSize(el.data("length")),
             "background-color": "#cbd5e1",
             "border-width": 1.5, "border-color": "#64748b",
-            // no permanent text labels — hover tooltip instead (keeps canvas readable)
             "text-opacity": 0,
         }},
-        { selector: "node.onpath", style: {
-            "background-color": "#3b82f6", "border-color": "#1d4ed8",
-        }},
-        { selector: "node.onref", style: {
+        // Shared across multiple people (green fill)
+        { selector: "node.shared", style: {
             "background-color": "#22c55e", "border-color": "#15803d",
+        }},
+        // Selected path — strongest emphasis (thick blue border + blue fill if not shared)
+        { selector: "node.selected:not(.shared)", style: {
+            "background-color": "#3b82f6", "border-color": "#1d4ed8", "border-width": 3,
+        }},
+        { selector: "node.selected.shared", style: {
+            "border-color": "#3b82f6", "border-width": 3,
+        }},
+        // On actual GRCh38 reference path (marker)
+        { selector: "node.reference", style: {
+            "border-style": "double",
         }},
         { selector: "node:selected", style: {
             "border-color": "#f59e0b", "border-width": 4,
@@ -99,7 +117,10 @@ export default function GraphExplorer({
       const n = evt.target; const d = n.data();
       if (onNodeSelect) onNodeSelect({
         id: d.id, length: d.length || 0, degree: d.degree || 0,
-        on_selected_path: !!d.onPath, on_reference: !!d.onRef, neighbors: [],
+        on_selected_path: !!d.onPath, is_shared: !!d.isShared,
+        on_reference_path: !!d.onRefPath,
+        on_reference: !!d.onRef,
+        neighbors: [],
       });
       cy.elements().removeClass("highlighted");
       n.addClass("highlighted");
@@ -127,13 +148,16 @@ export default function GraphExplorer({
     cy.on("mouseover", "node", (evt: EventObject) => {
       const n = evt.target; const d = n.data();
       const pos = n.renderedPosition();
-      const role = d.onRef && d.onPath ? "shared backbone + this person" :
-                   d.onRef ? "shared with others" :
-                   d.onPath ? "unique to this person" : "other";
+      const parts: string[] = [];
+      if (d.onPath) parts.push("selected path");
+      if (d.isShared) parts.push("shared");
+      if (d.onRefPath) parts.push("GRCh38 ref");
+      const role = parts.length > 0 ? parts.join(" + ") : "other";
       const kb = ((d.length || 0) / 1000).toFixed(1);
+      const sc = d.sampleCount || 0;
       setTooltip({
         x: pos.x, y: pos.y,
-        text: `${d.id}\n${kb} Kb · ${role}`,
+        text: `${d.id}\n${kb} Kb · ${sc} samples · ${role}`,
       });
     });
     cy.on("mouseout", "node", () => setTooltip(null));

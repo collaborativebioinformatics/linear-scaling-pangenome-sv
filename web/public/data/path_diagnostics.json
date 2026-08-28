@@ -1,0 +1,92 @@
+[
+  {
+    "graph": "baseline",
+    "sample": "GRCh38",
+    "haplotype": "0",
+    "path_name": "GRCh38#0#chr21",
+    "step_count": 1,
+    "length_bp": 46709983,
+    "gfa_source": "results/baseline/baseline.gfa"
+  },
+  {
+    "graph": "baseline",
+    "sample": "HG00673",
+    "haplotype": "1",
+    "path_name": "HG00673#1#JAHBBZ020000061.1",
+    "step_count": 15906,
+    "length_bp": 40759410,
+    "gfa_source": "results/baseline/baseline.gfa"
+  },
+  {
+    "graph": "baseline",
+    "sample": "HG00673",
+    "haplotype": "2",
+    "path_name": "HG00673#2#JAHBBY020000010.1",
+    "step_count": 1,
+    "length_bp": 36873966,
+    "gfa_source": "results/baseline/baseline.gfa"
+  },
+  {
+    "graph": "baseline",
+    "sample": "HG00733",
+    "haplotype": "1",
+    "path_name": "HG00733#1#JAHEPQ020000018.1",
+    "step_count": 8262,
+    "length_bp": 39274658,
+    "gfa_source": "results/baseline/baseline.gfa"
+  },
+  {
+    "graph": "baseline",
+    "sample": "HG00733",
+    "haplotype": "2",
+    "path_name": "HG00733#2#JAHEPP020000058.1",
+    "step_count": 10765,
+    "length_bp": 39318612,
+    "gfa_source": "results/baseline/baseline.gfa"
+  },
+  {
+    "graph": "stitched",
+    "sample": "GRCh38",
+    "haplotype": "0",
+    "path_name": "GRCh38#0#chr21",
+    "step_count": 102,
+    "length_bp": 2000,
+    "gfa_source": "results/merge/merged.gfa"
+  },
+  {
+    "graph": "stitched",
+    "sample": "HG00673",
+    "haplotype": "1",
+    "path_name": "HG00673#1#chr21",
+    "step_count": 105,
+    "length_bp": 2052,
+    "gfa_source": "results/merge/merged.gfa"
+  },
+  {
+    "graph": "stitched",
+    "sample": "HG00673",
+    "haplotype": "2",
+    "path_name": "HG00673#2#chr21",
+    "step_count": 100,
+    "length_bp": 1970,
+    "gfa_source": "results/merge/merged.gfa"
+  },
+  {
+    "graph": "stitched",
+    "sample": "HG00733",
+    "haplotype": "1",
+    "path_name": "HG00733#1#chr21",
+    "step_count": 102,
+    "length_bp": 2000,
+    "gfa_source": "results/merge/merged.gfa"
+  },
+  {
+    "graph": "stitched",
+    "sample": "HG00733",
+    "haplotype": "2",
+    "path_name": "HG00733#2#chr21",
+    "step_count": 102,
+    "length_bp": 2000,
+    "gfa_source": "results/merge/merged.gfa"
+  }
+]

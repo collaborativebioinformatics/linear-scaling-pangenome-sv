@@ -34,10 +34,16 @@ echo "  Instance: $INSTANCE"
 
 MANIFEST="work/chunks/chunk_manifest.tsv"
 
-# Ensure chunk FASTAs exist (skip if manifest already populated)
+# Ensure chunk FASTAs exist (fail if manifest not already present)
 if [ ! -f "$MANIFEST" ]; then
-    python3 pipeline/parallel/make_chunks.py 2>/dev/null || true
-    python3 pipeline/parallel/build_all_chunks.py 2>/dev/null || true
+    if [ "$DRY_RUN" = true ]; then
+        echo "  DRY-RUN: would run make_chunks.py to create $MANIFEST"
+    else
+        python3 pipeline/parallel/make_chunks.py || {
+            echo "FATAL: make_chunks.py failed"
+            exit 1
+        }
+    fi
 fi
 
 [ ! -f "$MANIFEST" ] && echo "FATAL: No manifest at $MANIFEST" && exit 1

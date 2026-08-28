@@ -2,9 +2,11 @@
 import { useState, useEffect, useCallback } from "react";
 import type { SampleGraph, NodeInfo, EdgeInfo } from "../types";
 import GraphExplorer from "../components/GraphExplorer";
+import PerfChart from "../components/PerfChart";
 
 interface ManifestData {
-  data_mode: string;
+  data_mode?: string;
+  run?: { run_id?: string; data_mode?: string; git_sha?: string; scientific_status?: string };
   pipeline_status?: Record<string, string>;
   samples?: { sample: string; haplotypes: string[]; hap_labels?: Record<string, string> }[];
   graphs?: Record<string, { nodes: number; edges: number; paths: number; walks: number }>;
@@ -80,8 +82,10 @@ export default function Home() {
     manifest?.samples?.length ? manifest.samples : FALLBACK_SAMPLES;
   const hapLabels: Record<string, string> = samples.find(s => s.sample === selSample)?.hap_labels || {};
   const graphNames = manifest?.graphs && Object.keys(manifest.graphs).length
-    ? Object.keys(manifest.graphs) : ["baseline", "merged"];
-  const dataMode = manifest?.data_mode || latest?.data_mode || "synthetic";
+    ? Object.keys(manifest.graphs) : ["baseline", "stitched"];
+  // Support v2 schema (nested run.data_mode) and v1 (top-level data_mode)
+  const dataMode = manifest?.run?.data_mode || manifest?.data_mode || latest?.data_mode || "synthetic";
+  const sciStatus = manifest?.run?.scientific_status || "";
   const bm = latest?.metrics?.baseline || {};
   const mm = latest?.metrics?.merged || {};
   const eqVerdict = latest?.equivalence?.verdict || null;
@@ -112,30 +116,29 @@ export default function Home() {
         <div className="sidebar-section">
           <h3>1. Choose a Graph</h3>
           <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
-            Baseline = built all at once (the truth). Merged = chunked + stitched (our method).
+            Baseline = built all at once (comparison standard). Stitched = parallel chunks → merged.
           </p>
           {graphNames.map(name => (
             <button key={name} onClick={() => setGraphMode(name)}
               className={"graph-mode-btn" + (graphMode === name ? " active" : "")}>
-              {name === "merged" ? "Merged (stitched)" : name === "baseline" ? "Baseline" : name}
+              {name === "stitched" ? "Stitched (parallel)" : name === "baseline" ? "Baseline" : name}
             </button>
           ))}
           <div className="graph-mode-explainer">
-            {graphMode === "merged" ? (
+            {graphMode === "stitched" ? (
               <>
-                <div className="gm-row"><span className="gm-chip">🧩</span> Cut the region into small overlapping pieces (chunks).</div>
-                <div className="gm-row"><span className="gm-chip">⚙️</span> Build a mini-graph for each piece in parallel.</div>
-                <div className="gm-row"><span className="gm-chip">🪡</span> Stitch the pieces together on their overlaps.</div>
+                <div className="gm-row"><span className="gm-chip">🧩</span> Cut the region into overlapping chunks.</div>
+                <div className="gm-row"><span className="gm-chip">⚙️</span> Build mini-graphs in parallel on DNAnexus.</div>
+                <div className="gm-row"><span className="gm-chip">🪡</span> Stitch chunks together at overlaps.</div>
                 <div className="gm-fast" style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0", fontSize: 12, color: "#92400e" }}>
-                  ⚠️ Chunks are being rebuilt (had wrong mash-kmer=31 → no edges).
-                  Showing baseline graph for both modes. They match — our method works.
+                  ⚠️ Chunks pending rebuild (mash-kmer=19). Current stitched graph is linear only — no branches.
                 </div>
               </>
             ) : (
               <>
-                <div className="gm-row"><span className="gm-chip">🧬</span> Build the whole region in one go.</div>
-                <div className="gm-row"><span className="gm-chip">🐢</span> Works, but slow for big genomes.</div>
-                <div className="gm-row gm-fast"><span className="gm-chip">🎯</span> The gold standard we compare against.</div>
+                <div className="gm-row"><span className="gm-chip">🧬</span> Build the whole region at once with PGGB.</div>
+                <div className="gm-row"><span className="gm-chip">🐢</span> Works for small regions, slow for whole genomes.</div>
+                <div className="gm-row gm-fast"><span className="gm-chip">🎯</span> Comparison standard (not biological truth).</div>
               </>
             )}
           </div>
@@ -181,8 +184,8 @@ export default function Home() {
           <div className="inspector-row"><span>DNA piece ID</span><span>{nodeInfo.id}</span></div>
           <div className="inspector-row"><span>Length</span><span>{(nodeInfo.length/1000).toFixed(1)} Kb</span></div>
           <div className="inspector-row"><span>Connections</span><span>{nodeInfo.degree}</span></div>
-          <div className="inspector-row"><span>On this person's path</span><span>{nodeInfo.on_selected_path ? "Yes" : "No"}</span></div>
-          <div className="inspector-row"><span>Shared with others</span><span>{nodeInfo.on_reference ? "Yes" : "No"}</span></div>
+          <div className="inspector-row"><span>On this person</span><span>{nodeInfo.on_selected_path ? "Yes" : "No"}</span></div>
+          <div className="inspector-row"><span>Shared with others</span><span>{nodeInfo.is_shared ? "Yes" : "No"}</span></div>
         </div> : edgeInfo ? <div>
           <div className="inspector-row"><span>Connection</span><span>{edgeInfo.source} → {edgeInfo.target}</span></div>
           <div className="inspector-row"><span>Direction</span><span>{edgeInfo.source_orientation}→{edgeInfo.target_orientation}</span></div>
@@ -315,6 +318,59 @@ export default function Home() {
     );
   };
 
+  const renderPerformance = () => (
+    <section className="section">
+      <h2 style={{ fontSize: 24, marginBottom: 4 }}>Performance Scaling</h2>
+      <p style={{ color: "#64748b", fontSize: 14, marginTop: 0, marginBottom: 8 }}>
+        Why does the parallel approach matter? Here's how wall time grows with region size.
+      </p>
+      <div style={{ marginBottom: 24 }}>
+        <PerfChart />
+      </div>
+      <div style={{ maxWidth: 740 }}>
+        <div className="card" style={{ background: "#f8fafc" }}>
+          <h4 style={{ marginTop: 0, marginBottom: 8, color: "#1e293b" }}>Why This Matters</h4>
+          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "#64748b" }}></th>
+                <th style={{ textAlign: "center", padding: "6px 8px", color: "#ef4444" }}>Baseline</th>
+                <th style={{ textAlign: "center", padding: "6px 8px", color: "#22c55e" }}>Stitched</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <td style={{ padding: "6px 8px", fontWeight: 600 }}>Complexity</td>
+                <td style={{ textAlign: "center", padding: "6px 8px" }}>O(L) — linear in region size</td>
+                <td style={{ textAlign: "center", padding: "6px 8px" }}>O(L/k) → O(1) with chunks</td>
+              </tr>
+              <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <td style={{ padding: "6px 8px", fontWeight: 600 }}>Scaling</td>
+                <td style={{ textAlign: "center", padding: "6px 8px" }}>Linear growth</td>
+                <td style={{ textAlign: "center", padding: "6px 8px" }}>Near-constant wall time</td>
+              </tr>
+              <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <td style={{ padding: "6px 8px", fontWeight: 600 }}>Memory</td>
+                <td style={{ textAlign: "center", padding: "6px 8px" }}>Hits limit ~5 Mb per machine</td>
+                <td style={{ textAlign: "center", padding: "6px 8px" }}>Unlimited — each chunk fits in RAM</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "6px 8px", fontWeight: 600 }}>10 Mb region</td>
+                <td style={{ textAlign: "center", padding: "6px 8px", color: "#ef4444" }}>~1,000s (exceeds memory)</td>
+                <td style={{ textAlign: "center", padding: "6px 8px", color: "#22c55e" }}>~115s (25 parallel chunks)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="card" style={{ marginTop: 12, background: "#fefce8", border: "1px solid #fde047" }}>
+          <p style={{ fontSize: 12, color: "#854d0e", margin: 0, lineHeight: 1.6 }}>
+            <strong>NOTE:</strong> These are theoretical estimates based on PGGB's O(n²×L) all-pairs alignment with n=5 haplotypes. Real DNAnexus timings will replace estimates after chunk rebuild.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+
   return (<>
       {/* ===== HERO — simple language ===== */}
       <section style={{ background: "linear-gradient(160deg, #0c1929 0%, #1a365d 40%, #2563eb 100%)", color: "#fff", padding: "70px 20px 50px", textAlign: "center" }}>
@@ -379,6 +435,7 @@ export default function Home() {
           { key: "dashboard", label: "📊 Results", hint: "numbers & verdict" },
           { key: "chunks", label: "🧩 Chunks", hint: "the parallel pieces" },
           { key: "compare", label: "⚖️ Compare", hint: "two people side by side" },
+          { key: "performance", label: "⏱️ Speed", hint: "scaling & time complexity" },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} title={t.hint}
             className={"graph-btn" + (tab === t.key ? " active" : "")}
@@ -391,6 +448,7 @@ export default function Home() {
       {tab === "dashboard" && renderDashboard()}
       {tab === "chunks" && renderChunks()}
       {tab === "compare" && renderCompare()}
+      {tab === "performance" && renderPerformance()}
     </div>
   </>);
 }

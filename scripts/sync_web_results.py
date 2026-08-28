@@ -20,6 +20,7 @@ def main():
         ("results/benchmark/report.json", "web/public/data/latest.json"),
         ("results/web/manifest.json", "web/public/data/manifest.json"),
         ("results/web/overview.json", "web/public/data/overview.json"),
+        ("results/web/path_diagnostics.json", "web/public/data/path_diagnostics.json"),
     ]
 
     for src, dst in sources:

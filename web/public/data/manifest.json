@@ -1,18 +1,38 @@
 {
-  "schema_version": "1",
-  "run_id": "latest",
-  "data_mode": "real",
+  "schema_version": "2",
+  "run": {
+    "run_id": "latest",
+    "git_sha": "61f06c7e176f",
+    "generated_at": "2026-08-28T05:35:10Z",
+    "data_mode": "real_baseline_pending_stitch",
+    "scientific_status": "Real HPRC baseline available. Parallel stitch pending chunk rebuild (mash-kmer=19)."
+  },
   "target": {
     "reference": "GRCh38",
     "chromosome": "chr21",
-    "start": 0,
-    "end": 0
+    "start": 20000000,
+    "end": 21000000
+  },
+  "graphs": {
+    "baseline": {
+      "nodes": 5899,
+      "edges": 8240,
+      "paths": 5,
+      "walks": 0
+    },
+    "stitched": {
+      "nodes": 511,
+      "edges": 506,
+      "paths": 5,
+      "walks": 0
+    }
   },
   "pipeline_status": {
-    "baseline": "IMPLEMENTED",
+    "baseline": "AVAILABLE",
     "parallel_chunks": "IMPLEMENTED",
-    "stitch": "IMPLEMENTED",
-    "equivalence": "NOT_RUN"
+    "stitch": "PLACEHOLDER_LINEAR_ONLY",
+    "path_equivalence": "NOT_RUN",
+    "variant_equivalence": "NOT_RUN"
   },
   "samples": [
     {
@@ -46,19 +66,5 @@
         "2": "maternal"
       }
     }
-  ],
-  "graphs": {
-    "baseline": {
-      "nodes": 5899,
-      "edges": 8240,
-      "paths": 5,
-      "walks": 0
-    },
-    "merged": {
-      "nodes": 5899,
-      "edges": 8240,
-      "paths": 5,
-      "walks": 0
-    }
-  }
+  ]
 }
