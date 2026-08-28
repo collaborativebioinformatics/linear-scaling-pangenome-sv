@@ -36,23 +36,42 @@ def map_chunk(ap, qry, min_mapq, min_cov):
         r = subprocess.run(["minimap2","-x","asm5","-t","4","--eqx","-c",str(ap),qry],
                            capture_output=True,text=True,timeout=600)
     except: return None
-    best, bc = None, 0
+
+    segs = []
     for line in r.stdout.strip().split("\n"):
         if not line: continue
         p = line.split("\t")
         if len(p) < 12: continue
         qlen=int(p[1]); qs=int(p[2]); qe=int(p[3])
-        st=p[4]; tn=p[5]; ts=int(p[7]); te=int(p[8])
-        mat=int(p[9]); bl=int(p[10]); mpq=int(p[11])
-        qc=(qe-qs)/max(qlen,1)
-        if mpq >= min_mapq and qc > bc:
-            bc=qc
-            best={"source_contig":tn,"source_start":ts,"source_end":te,"strand":st,
-                  "mapping_quality":mpq,"query_coverage":qc,
-                  "identity":mat/max(bl,1) if bl>0 else 0,
-                  "method":"minimap2_asm5_chunk"}
-    return best if bc >= min_cov else None
+        st=p[4]; tn=p[5]; ts=int(p[7]); te=int(p[8]); mpq=int(p[11])
+        if mpq >= min_mapq:
+            segs.append({"qlen":qlen,"qs":qs,"qe":qe,"strand":st,"contig":tn,"ts":ts,"te":te,"mapq":mpq})
+    if not segs: return None
 
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for s in segs: groups[(s["contig"], s["strand"])].append(s)
+
+    best, best_cov = None, 0
+    for (contig, strand), grp in groups.items():
+        grp.sort(key=lambda s: s["qs"])
+        qlen = grp[0]["qlen"]
+        covered = sum(s["qe"] - s["qs"] for s in grp) / max(qlen, 1)
+        ts_seq = [s["ts"] for s in grp]
+        collinear = ts_seq == sorted(ts_seq, reverse=(strand == "-"))
+        if collinear and covered > best_cov:
+            best_cov, best = covered, (contig, strand, grp)
+
+    if not best or best_cov < min_cov: return None
+    contig, strand, grp = best
+    return {"source_contig": contig,
+            "source_start": min(s["ts"] for s in grp),
+            "source_end": max(s["te"] for s in grp),
+            "strand": strand,
+            "mapping_quality": min(s["mapq"] for s in grp),
+            "query_coverage": best_cov,
+            "segments_merged": len(grp),
+            "method": "minimap2_asm5_chunk_multi_segment"}
 
 def file_sha256(path):
     if not os.path.exists(path): return ""
@@ -204,7 +223,7 @@ def main():
                 # Extract from exact source_contig via samtools faidx
                 # NEVER concatenate all contigs — PAF coords are per-contig
                 seq = faidx_extract(ap, ctg, ss, se, strand)
-                fout.write(f">{sm}#{nh}#chr21\n")
+                fout.write(f">{sm}#{nh}#chr21:{ss}-{se}\n")
                 for i in range(0,len(seq),80): fout.write(seq[i:i+80]+"\n")
                 sc += 1
                 cm_rows.append({"chunk_id":cid,"sample":sm,"haplotype":nh,
