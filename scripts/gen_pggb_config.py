@@ -19,7 +19,7 @@ def load_config():
         "threads": pggb.get("threads", 8),
         "minimum_identity": params.get("minimum_identity", 90),
         "segment_length": params.get("segment_length", 5000),
-        "mash_kmer": params.get("mash_kmer", 31),
+        "mash_kmer": params.get("mash_kmer", 19),
         "match_length": params.get("match_length", 29),
         "path_jump_max": params.get("path_jump_max", 0),
         "edge_jump_max": params.get("edge_jump_max", 0),

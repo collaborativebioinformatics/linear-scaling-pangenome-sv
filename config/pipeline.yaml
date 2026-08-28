@@ -47,9 +47,9 @@ pggb:
     # -e: smoothxg maximum edge jump — gaps allowed in edges
     edge_jump_max: 0
     # Canonical PGGB v0.6.0 command:
-    # pggb -i input.fa -o output -t THREADS -n NUM_PATHS -p 90 -s 5000 -K 31 -k 29 -j 0 -e 0
+    # pggb -i input.fa -o output -t THREADS -n NUM_PATHS -p 90 -s 5000 -K 19 -k 29 -j 0 -e 0
     # NOTE: -w is NOT a valid option in PGGB v0.6.0.
-    # NOTE: -K (mash k-mer) and -k (seqwish match) are distinct parameters.
+    # NOTE: -K (mash k-mer) = 19, distinct from -k (seqwish match) = 29.
 
   # Immutable image reference — NEVER use :latest for scientific benchmarks.
   # Digest pulled successfully on DNAnexus Group11_2026 (chunk PGGB 2026-08-28).

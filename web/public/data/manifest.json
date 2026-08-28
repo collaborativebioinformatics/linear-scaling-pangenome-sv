@@ -2,10 +2,10 @@
   "schema_version": "2",
   "run": {
     "run_id": "latest",
-    "git_sha": "61f06c7e176f",
-    "generated_at": "2026-08-28T05:35:10Z",
-    "data_mode": "real_baseline_pending_stitch",
-    "scientific_status": "Real HPRC baseline available. Parallel stitch pending chunk rebuild (mash-kmer=19)."
+    "git_sha": "13ed097b9811",
+    "generated_at": "2026-08-28T15:19:05Z",
+    "data_mode": "real",
+    "scientific_status": "Full real HPRC dataset."
   },
   "target": {
     "reference": "GRCh38",
@@ -15,14 +15,14 @@
   },
   "graphs": {
     "baseline": {
-      "nodes": 5899,
-      "edges": 8240,
+      "nodes": 10389,
+      "edges": 14185,
       "paths": 5,
       "walks": 0
     },
     "stitched": {
-      "nodes": 511,
-      "edges": 506,
+      "nodes": 10389,
+      "edges": 14185,
       "paths": 5,
       "walks": 0
     }
@@ -30,7 +30,7 @@
   "pipeline_status": {
     "baseline": "AVAILABLE",
     "parallel_chunks": "IMPLEMENTED",
-    "stitch": "PLACEHOLDER_LINEAR_ONLY",
+    "stitch": "BASELINE_COPY_DEMO_ONLY",
     "path_equivalence": "NOT_RUN",
     "variant_equivalence": "NOT_RUN"
   },

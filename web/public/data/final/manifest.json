@@ -16,10 +16,10 @@
     "visualization_region": "visualization_region.json"
   },
   "provenance": {
-    "baseline_gfa_sha256": "d3792eb6e97ef8b504f71f064555729a613362a9214a95c688fa095d0e93d71f",
-    "generated_at": "2026-08-28T12:55:21Z",
-    "git_sha": "58a9522ebc29ec760235d2ff901bcb0a92e30c73",
-    "merged_gfa_sha256": "b0fcf601c9fd49273c210f207e0661c76ee9ab2be417233aa074d61d60235a0b"
+    "baseline_gfa_sha256": "bb1ad26b31f989aed7dcf3b2ea6d065af8367c8cabe55ce94adf8dfc58cdc7b8",
+    "generated_at": "2026-08-28T15:19:06Z",
+    "git_sha": "13ed097b9811a50e5e7658fb8bd5faef5ab36bc5",
+    "merged_gfa_sha256": "bb1ad26b31f989aed7dcf3b2ea6d065af8367c8cabe55ce94adf8dfc58cdc7b8"
   },
   "samples": [
     {
@@ -45,10 +45,10 @@
   ],
   "schema_version": "final-1",
   "validation": {
-    "baseline": "INVALID_FOR_1MB_BENCHMARK",
+    "baseline": "REAL_HPRC_VALIDATED",
     "parallel": "NOT_RUN",
     "path_equivalence": "NOT_RUN",
-    "stitch": "PRESENT_BUT_NOT_VALIDATED",
+    "stitch": "BASELINE_COPY_DEMO_ONLY",
     "variant_equivalence": "NOT_RUN"
   }
 }

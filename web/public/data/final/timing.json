@@ -1,3 +1,39 @@
 {
-  "status": "NOT_RUN"
+  "benchmark_region": "GRCh38 chr21:20000000-21000000",
+  "benchmark_length_bp": 1000000,
+  "baseline": {
+    "job_id": "job-JB8p1y00ZQvP86x4p5x7v8Fv",
+    "wall_seconds": 326.901,
+    "started_running_ms": 1787928834599,
+    "stopped_running_ms": 1787929161500,
+    "instance_type": "mem3_ssd1_v2_x16"
+  },
+  "parallel": {
+    "chunks": [
+      {
+        "job_id": "job-JB8p2400ZQvPGXKyGJz78gVz",
+        "wall_seconds": 272.359,
+        "started_running_ms": 1787928857447,
+        "stopped_running_ms": 1787929129806,
+        "instance_type": "mem3_ssd1_v2_x16"
+      },
+      {
+        "job_id": "job-JB8p2480ZQvG91xZY4bfFZPG",
+        "wall_seconds": 268.988,
+        "started_running_ms": 1787928857459,
+        "stopped_running_ms": 1787929126447,
+        "instance_type": "mem3_ssd1_v2_x16"
+      },
+      {
+        "job_id": "job-JB8p24Q0ZQv1xgJYJpGkXF4b",
+        "wall_seconds": 256.193,
+        "started_running_ms": 1787928857466,
+        "stopped_running_ms": 1787929113659,
+        "instance_type": "mem3_ssd1_v2_x16"
+      }
+    ],
+    "graph_parallel_wall_seconds": 272.4,
+    "sum_worker_seconds": 797.5
+  },
+  "wall_clock_speedup": 1.2
 }

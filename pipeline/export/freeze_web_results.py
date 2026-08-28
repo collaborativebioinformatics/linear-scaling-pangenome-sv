@@ -98,7 +98,9 @@ def _validate_and_build():
         "results/benchmark/boundary_comparison.json", {"status": "NOT_RUN"})
     variant_comparisons = _read_json(
         "results/benchmark/variant_comparisons.json", {"status": "NOT_RUN"})
-    timing = _read_json("results/benchmark/timing.json", {"status": "NOT_RUN"})
+    # Prefer real final-run timing if it exists (from DNAnexus), else benchmark
+    timing = _read_json("results/final_run/timing.json",
+               _read_json("results/benchmark/timing.json", {"status": "NOT_RUN"}))
     vis_region = _read_json("results/web/visualization_region.json", None)
 
     baseline_status = baseline_validation.get("status", "NOT_RUN")
@@ -114,11 +116,16 @@ def _validate_and_build():
     stitched_status = "NOT_RUN"
     merged_gfa = "results/merge/merged.gfa"
     if os.path.exists(merged_gfa):
+        merged_sha = _file_sha256(merged_gfa)
+        baseline_sha = _file_sha256("results/baseline/baseline.gfa")
         from pipeline.merge.gfa import GfaGraph
         g = GfaGraph.parse_file(merged_gfa)
-        stitched_status = ("PRESENT_BUT_NOT_VALIDATED"
-                           if g.edge_count() > 0 and g.path_count() > 0
-                           else "PLACEHOLDER_LINEAR_ONLY")
+        if baseline_sha and merged_sha and baseline_sha == merged_sha:
+            stitched_status = "BASELINE_COPY_DEMO_ONLY"
+        elif g.edge_count() > 0 and g.path_count() > 0:
+            stitched_status = "PRESENT_BUT_NOT_VALIDATED"
+        else:
+            stitched_status = "PLACEHOLDER_LINEAR_ONLY"
 
     validation = {
         "baseline": baseline_level,

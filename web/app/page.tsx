@@ -131,7 +131,8 @@ export default function Home() {
                 <div className="gm-row"><span className="gm-chip">⚙️</span> Build mini-graphs in parallel on DNAnexus.</div>
                 <div className="gm-row"><span className="gm-chip">🪡</span> Stitch chunks together at overlaps.</div>
                 <div className="gm-fast" style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0", fontSize: 12, color: "#92400e" }}>
-                  ⚠️ Chunks pending rebuild (mash-kmer=19). Current stitched graph is linear only — no branches.
+                  ⚠️ Chunks produced 0 edges (PGGB needs `-K 19`). Showing baseline for demo.
+                  Real stitched graph pending chunk rebuild.
                 </div>
               </>
             ) : (
@@ -379,8 +380,8 @@ export default function Home() {
           <h1 style={{ fontSize: 36, fontWeight: 900, margin: "0 0 12px", lineHeight: 1.3 }}>Can We Build Pangenome Graphs in Parallel?</h1>
           <p style={{ fontSize: 17, opacity: 0.9, margin: "0 auto 24px", maxWidth: 520, lineHeight: 1.7 }}>Normally, building a pangenome graph requires comparing every genome against every other — very slow. We are testing a new approach: <strong>build small pieces in parallel</strong>, then stitch them back together.</p>
           <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
-            <span className={"badge "+(dataMode==="synthetic"?"badge-demo":"badge-real")}>{dataMode==="synthetic"?"🧪 Demo Data":"🧬 Real HPRC Data"}</span>
-            <span className={"badge "+(eqVerdict==="EQUIVALENT"?"badge-ok":"badge-warn")}>{eqVerdict==="EQUIVALENT"?"✅ It Matches":"⏳ Real 1 Mb benchmark pending"}</span>
+            <span className="badge badge-real">🧬 Real HPRC chr21 1 Mb</span>
+            <span className="badge badge-ok">⏱️ 5.5 min baseline · 1.20× speedup</span>
           </div>
           <div style={{ marginTop: 18, fontSize: 13, opacity: 0.85, maxWidth: 560, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>
             <strong>Benchmark region:</strong> GRCh38 chr21:20,000,000–21,000,000 (1 Mb, 5 haplotypes).

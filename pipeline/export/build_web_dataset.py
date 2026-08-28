@@ -260,6 +260,20 @@ def _extract_sample_graph(g, sample, hap, graph_label):
     }
 
 
+def _stitch_status(graphs, graph_meta):
+    """Honest stitch status: detect baseline copy, placeholder, or real."""
+    if "stitched" not in graphs:
+        return "NOT_IMPLEMENTED"
+    if graph_meta.get("stitched", {}).get("edges", 0) < 1000:
+        return "PLACEHOLDER_LINEAR_ONLY"
+    # Check if stitch is a copy of baseline
+    base_sha = _file_sha256(graphs.get("baseline", ""))
+    stitch_sha = _file_sha256(graphs["stitched"])
+    if base_sha and stitch_sha and base_sha == stitch_sha:
+        return "BASELINE_COPY_DEMO_ONLY"
+    return "IMPLEMENTED"
+
+
 def _discover_graphs():
     """Locate baseline + merged GFAs across real and synthetic locations."""
     candidates = {
@@ -356,13 +370,7 @@ def main():
     pipeline_status = {
         "baseline": "AVAILABLE" if "baseline" in graphs else "NOT_AVAILABLE",
         "parallel_chunks": "IMPLEMENTED" if chunks else "NOT_AVAILABLE",
-        "stitch": (
-            "PLACEHOLDER_LINEAR_ONLY"
-            if "stitched" in graphs and graph_meta.get("stitched", {}).get("paths", 0) <= 5
-            and graph_meta.get("stitched", {}).get("edges", 0) < 1000
-            else "IMPLEMENTED" if "stitched" in graphs
-            else "NOT_IMPLEMENTED"
-        ),
+        "stitch": _stitch_status(graphs, graph_meta),
         "path_equivalence": "NOT_RUN",
         "variant_equivalence": "NOT_RUN",
     }
