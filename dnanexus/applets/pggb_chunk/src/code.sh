@@ -40,21 +40,22 @@ main() {
     START=$(date +%s)
     mkdir -p output
 
+    # PGGB requires samtools faidx next to the FASTA. Mount the workdir so
+    # the .fai can be written, then index + build in one container.
     docker run --rm \
-        -v "$PWD/input.fa":/data/input.fa:ro \
-        -v "$PWD/output":/data/output \
+        -v "$PWD":/data \
         "$PGGB_IMAGE" \
-        pggb \
+        bash -lc "samtools faidx /data/input.fa && pggb \
             -i /data/input.fa \
             -o /data/output \
-            -t "$THREADS" \
-            -n "$NUM_PATHS" \
-            -p "$MIN_ID" \
-            -s "$SEG_LEN" \
-            -K "$MASH_KMER" \
-            -k "$MATCH_LEN" \
-            -j "$PATH_JUMP" \
-            -e "$EDGE_JUMP" \
+            -t $THREADS \
+            -n $NUM_PATHS \
+            -p $MIN_ID \
+            -s $SEG_LEN \
+            -K $MASH_KMER \
+            -k $MATCH_LEN \
+            -j $PATH_JUMP \
+            -e $EDGE_JUMP" \
             2>&1 | tee pggb.log
 
     END=$(date +%s)
