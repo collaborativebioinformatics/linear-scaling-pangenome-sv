@@ -92,6 +92,24 @@ export default function Home() {
     <div className="explorer-wrapper">
       <div className="sidebar">
         <div className="sidebar-section">
+          <h3>What This Graph Shows</h3>
+          <div className="what-graph-card">
+            <p style={{ margin: "0 0 8px", fontSize: 13, lineHeight: 1.6, color: "#1e293b" }}>
+              Think of it like a <strong>subway map</strong> where each person rides a different route:
+            </p>
+            <div className="subway-row"><span className="subway-dot blue">●</span> This person's DNA path</div>
+            <div className="subway-row"><span className="subway-dot green">●</span> DNA pieces shared with others (the common backbone)</div>
+            <div className="subway-row"><span className="subway-dot gray">●</span> Nearby pieces</div>
+            <div className="subway-divider"></div>
+            <div className="subway-row" style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
+              <strong>Circles</strong> = pieces of DNA. <strong>Lines</strong> = connections.
+              Where a line <strong>splits</strong> into two = two people differ there.
+              Where lines <strong>rejoin</strong> = their DNA matches again.
+            </div>
+          </div>
+        </div>
+
+        <div className="sidebar-section">
           <h3>1. Choose a Graph</h3>
           <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
             One region of chromosome 21, built two ways — to prove both give the same answer.
@@ -108,13 +126,13 @@ export default function Home() {
                 <div className="gm-row"><span className="gm-chip">🧩</span> Cut the region into small overlapping pieces (chunks).</div>
                 <div className="gm-row"><span className="gm-chip">⚙️</span> Build a mini-graph for each piece in parallel.</div>
                 <div className="gm-row"><span className="gm-chip">🪡</span> Stitch the pieces together on their overlaps.</div>
-                <div className="gm-row gm-fast"><span className="gm-chip">⚡</span> This is our method — fast & scalable.</div>
+                <div className="gm-row gm-fast"><span className="gm-chip">⚡</span> Our method — fast & scalable.</div>
               </>
             ) : (
               <>
-                <div className="gm-row"><span className="gm-chip">🧬</span> Build the whole region in one shot.</div>
+                <div className="gm-row"><span className="gm-chip">🧬</span> Build the whole region in one go.</div>
                 <div className="gm-row"><span className="gm-chip">🐢</span> Works, but slow for big genomes.</div>
-                <div className="gm-row gm-fast"><span className="gm-chip">🎯</span> This is the gold standard we compare against.</div>
+                <div className="gm-row gm-fast"><span className="gm-chip">🎯</span> The gold standard we compare against.</div>
               </>
             )}
           </div>
@@ -139,24 +157,19 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="sidebar-section">
-          <h3>How to Read This</h3>
-          <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
-            <div><span style={{ display:"inline-block", width:10, height:10, background:"#3b82f6", borderRadius:2, marginRight:6 }}></span> This person's path</div>
-            <div><span style={{ display:"inline-block", width:10, height:10, background:"#22c55e", borderRadius:2, marginRight:6 }}></span> Shared with others</div>
-            <div><span style={{ display:"inline-block", width:10, height:10, background:"#cbd5e1", borderRadius:2, marginRight:6 }}></span> Other nodes</div>
-            <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
-              Circles = pieces of DNA. Lines = connections.
-              Hover for details. Bigger = longer. Branches = differences.
-            </div>
-          </div>
-        </div>
       </div>
       <div>
         <GraphExplorer graph={sg}
           onNodeSelect={(i) => { setNodeInfo(i); setEdgeInfo(null); }}
           onEdgeSelect={(e) => { setEdgeInfo(e); setNodeInfo(null); }} />
-        {sg && sg.nodes.length <= 3 && (
+        {graphMode === "merged" && sg && sg.nodes.length > 0 && (
+          <div className="card" style={{ marginTop: 12, fontSize: 13, background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e" }}>
+            <strong>⚠️ Heads up:</strong> the merged graph is currently sparse ({sg.nodes.length} nodes, {sg.edges.length} edges, no branches).
+            The parallel PGGB chunks haven't been rebuilt yet with the correct config — so the stitch only has a linear backbone, no variants.
+            For now, switch to <strong>Baseline</strong> above to see the richer graph with 4,000 nodes and 740+ branches.
+          </div>
+        )}
+        {sg && sg.nodes.length <= 3 && graphMode === "baseline" && (
           <div className="card" style={{ marginTop: 12, fontSize: 13, color: "#475569" }}>
             <strong>Heads up:</strong> this view shows only {sg.nodes.length} node{sg.nodes.length===1?"":"s"} because
             {selSample === "GRCh38"
