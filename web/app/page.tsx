@@ -11,12 +11,17 @@ export default function Home() {
   const [tab, setTab] = useState("explore");
   const [selSample, setSelSample] = useState("GRCh38");
   const [selHap, setSelHap] = useState("0");
+  const [meta, setMeta] = useState(null as any);
 
   const samples = [
     { name: "GRCh38", haps: ["0"] },
     { name: "HG00673", haps: ["1", "2"] },
     { name: "HG00733", haps: ["1", "2"] },
   ];
+
+  useEffect(() => {
+    fetch("/api/data").then(r => r.json()).then(setMeta).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -48,8 +53,11 @@ export default function Home() {
   if (loading) return <div className="container" style={{padding:40}}>Loading...</div>;
 
   const tabContent = (() => {
-    if (tab === "dashboard") return <section className="section"><h2>Dashboard</h2><p>Baseline: 502n 497e. Merged: 553n 538e.</p></section>;
-    if (tab === "chunks") return <section className="section"><h2>Chunks</h2><p><span className="badge badge-warn">STITCH NOT_RUN</span></p></section>;
+    const bm = meta?.metrics?.baseline || {};
+    const mm = meta?.metrics?.merged || {};
+    if (tab === "dashboard") return <section className="section"><h2>Dashboard</h2><p>Baseline: {bm.nodes ?? "–"}n {bm.edges ?? "–"}e. Merged: {mm.nodes ?? "–"}n {mm.edges ?? "–"}e. {meta?.equivalence?.verdict || ""}</p></section>;
+    if (tab === "chunks") return <section className="section"><h2>Chunks</h2><p><span className={"badge "+((meta?.stitch?.status==="PASS")?"badge-ok":"badge-warn")}>STITCH {meta?.stitch?.status || "NOT_RUN"}</span></p>
+      {(meta?.boundaries||[]).map((b:any)=> <p key={b.boundary}>{b.boundary}: {b.status} joined={b.haplotypes_joined}</p>)}</section>;
     if (tab === "compare") return <section className="section"><h2>Compare</h2></section>;
     return (
       <div className="explorer-wrapper">
@@ -88,8 +96,8 @@ export default function Home() {
           <span className="badge badge-demo">DEMO</span>
           <span className="badge badge-ok">BASELINE: OK</span>
           <span className="badge badge-ok">CHUNKS: OK</span>
-          <span className="badge badge-warn">STITCH: NOT_IMPLEMENTED</span>
-          <span className="badge badge-warn">EQUIVALENCE: NOT_RUN</span>
+          <span className={"badge "+(meta?.stitch?.status==="PASS"?"badge-ok":"badge-warn")}>STITCH: {meta?.stitch?.status || "NOT_IMPLEMENTED"}</span>
+          <span className={"badge "+(meta?.equivalence?.verdict==="EQUIVALENT"?"badge-ok":"badge-warn")}>EQUIVALENCE: {meta?.equivalence?.verdict || "NOT_RUN"}</span>
         </div>
       </header>
       <div style={{display:"flex",gap:4,marginBottom:16}}>

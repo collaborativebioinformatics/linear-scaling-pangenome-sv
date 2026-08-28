@@ -110,6 +110,9 @@ def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
     if not chunk_graphs:
         return merged, []
 
+    if chunk_rows is None:
+        chunk_rows = _infer_chunk_rows(chunk_graphs)
+
     chunk_graphs = [(cid, walks_as_paths(g)) for cid, g in chunk_graphs]
     graphs = dict(chunk_graphs)
     merged.headers = [Header(h.version, dict(h.metadata))
@@ -271,18 +274,42 @@ def _actual_overlap(left_row, right_row, fallback):
     return max(0, hi - lo)
 
 
-def _load_chunks(cm_path):
-    """([(chunk_id, GfaGraph)], {chunk_id: manifest_row}) for chunks already built."""
+def _load_chunks(cm_path, chunk_dir=None):
+    """([(chunk_id, GfaGraph)], {chunk_id: manifest_row}) for chunks already built.
+
+    chunk_dir defaults to a `chunks/` folder next to the manifest, otherwise
+    the manifest's own directory (covers both work/chunks/ and work/demo/).
+    """
     if not os.path.exists(cm_path):
         return [], {}
+    if chunk_dir is None:
+        d = os.path.dirname(os.path.abspath(cm_path)) or "."
+        nested = os.path.join(d, "chunks")
+        chunk_dir = nested if os.path.isdir(nested) else d
     result, rows = [], {}
     with open(cm_path) as f:
         for row in csv.DictReader(f, delimiter=T):
-            gp = f"work/chunks/{row['chunk_id']}.gfa"
+            gp = os.path.join(chunk_dir, f"{row['chunk_id']}.gfa")
             if os.path.exists(gp):
                 result.append((row["chunk_id"], GfaGraph.parse_file(gp)))
                 rows[row["chunk_id"]] = row
     return result, rows
+
+
+def _infer_chunk_rows(chunk_graphs):
+    """Load a nearby chunk_manifest.tsv when the caller omitted chunk_rows."""
+    for _cid, g in chunk_graphs:
+        src = getattr(g, "source", None)
+        if not src:
+            continue
+        d = os.path.dirname(os.path.abspath(src))
+        for cand in (os.path.join(d, "chunk_manifest.tsv"),
+                     os.path.join(os.path.dirname(d), "chunk_manifest.tsv")):
+            if os.path.exists(cand):
+                _loaded, rows = _load_chunks(cand, chunk_dir=d)
+                if rows:
+                    return rows
+    return {}
 
 
 def _load_chunk_mapping(path="results/preparation/chunk_mapping.tsv"):

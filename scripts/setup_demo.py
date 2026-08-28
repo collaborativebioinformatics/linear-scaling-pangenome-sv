@@ -7,7 +7,11 @@ import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from pipeline.merge.gfa import GfaGraph, Header, Segment, Link, Path
-from pipeline.merge.merge_graphs import diagnostic_disjoint_union
+from pipeline.merge.merge_graphs import (
+    diagnostic_disjoint_union, overlap_aware_stitch, _write_boundary_report,
+)
+from pipeline.merge.validate_merge import validate
+from pipeline.benchmark.graph_stats import compute_stats, compare
 from pipeline.parallel.make_chunks import create_chunks, write_manifest
 
 SEG = 20
@@ -95,48 +99,94 @@ def chunks(ref, haps, cfg):
         cg.headers.append(Header("1.1"))
         rn = _chain(cg, ref[st:en], f"{cid}_ref")
         if rn:
-            cg.paths[f"GRCh38#0#chr21_{cid}"] = Path(
-                f"GRCh38#0#chr21_{cid}", [n + "+" for n in rn])
+            rpn = f"GRCh38#0#chr21:{st}-{en}"
+            cg.paths[rpn] = Path(rpn, [n + "+" for n in rn])
+        last = c is chs[-1]
         for h in haps:
-            hn = _chain(cg, h["sequence"][st:en],
+            hs, he = st, min(en, len(h["sequence"]))
+            if last:
+                he = len(h["sequence"])
+            if he <= hs:
+                continue
+            hn = _chain(cg, h["sequence"][hs:he],
                         f"{cid}_{h['sample']}_{h['haplotype']}")
             if hn:
-                pn = f"{h['sample']}#{h['haplotype']}#chr21_{cid}"
+                pn = f"{h['sample']}#{h['haplotype']}#chr21:{hs}-{he}"
                 cg.paths[pn] = Path(pn, [n + "+" for n in hn])
         cg.write_gfa(os.path.join(cd, f"{cid}.gfa"))
         result.append((cid, cg))
-    return result
+    return result, chs
 
 
 def main():
     cfg = yaml.safe_load(open("config/demo.yaml"))
+    pipe = {}
+    if os.path.exists("config/pipeline.yaml"):
+        pipe = yaml.safe_load(open("config/pipeline.yaml")) or {}
+    strategy = pipe.get("merge", {}).get("strategy", "overlap_aware")
     print("Demo: building synthetic data...")
+    print(f"Strategy: {strategy}")
     ref, haps = build_sequences(cfg)
     bg = baseline(ref, haps, cfg)
-    cgs = chunks(ref, haps, cfg)
-    merged = diagnostic_disjoint_union(cgs)
+    cgs, chs = chunks(ref, haps, cfg)
+    rows = {c["chunk_id"]: c for c in chs}
+    obp = cfg["demo"]["chunk"]["overlap"]
+
+    if strategy == "disjoint_union":
+        merged = diagnostic_disjoint_union(cgs)
+        br = []
+    else:
+        merged, br = overlap_aware_stitch(
+            cgs, overlap_bp=obp, chunk_rows=rows)
+
     mp = cfg["demo"]["output"]["merged_gfa"]
     os.makedirs(os.path.dirname(mp), exist_ok=True)
     merged.write_gfa(mp)
+    os.makedirs("results/merge", exist_ok=True)
+    merged.write_gfa("results/merge/merged.gfa")
+    if br:
+        _write_boundary_report(br, "work/demo/boundary_report.tsv")
+        _write_boundary_report(br, "results/merge/boundary_report.tsv")
+
+    issues = validate(cfg["demo"]["output"]["baseline_gfa"], mp)
+    cmp = compare(compute_stats(bg, "baseline"), compute_stats(merged, "merged"))
+    comps = compute_stats(merged, "merged")["components"]["count"]
+    stitch_ok = bool(br) and all(b.get("status") == "PASS" for b in br)
+    print(f"Baseline: {bg.node_count()}n {bg.edge_count()}e")
+    print(f"Merged: {merged.node_count()}n {merged.edge_count()}e "
+          f"{merged.path_count()} paths, {comps} components")
+    print(f"Verdict: {cmp['verdict']}")
+    if br:
+        failed = [b for b in br if b["status"] == "FAIL"]
+        print(f"Boundaries: {len(br) - len(failed)}/{len(br)} PASS")
+    errors = [i for i in issues if i["severity"] == "ERROR"]
+    if errors:
+        for e in errors[:5]:
+            print(f"  [ERROR] {e['message']}")
+
     data = {
         "data_mode": "synthetic",
         "run": {"run_id": "demo", "pipeline_version": "0.1.0", "mode": "demo",
-                "data_mode": "synthetic",
+                "data_mode": "synthetic", "strategy": strategy,
                 "timestamp": datetime.datetime.now().isoformat()},
         "target": {"reference": "GRCh38", "chromosome": "chr21",
                    "start": 0, "end": cfg["demo"]["reference_length"]},
         "samples": ["HG00673", "HG00733"],
         "metrics": {
             "baseline": {"nodes": bg.node_count(), "edges": bg.edge_count()},
-            "merged": {"nodes": merged.node_count(), "edges": merged.edge_count()},
+            "merged": {"nodes": merged.node_count(), "edges": merged.edge_count(),
+                       "paths": merged.path_count(), "components": comps},
         },
-        "boundaries": [], "bubbles": [], "graphWindow": {},
+        "stitch": {"status": "PASS" if stitch_ok else ("FAIL" if br else "OK"),
+                   "strategy": strategy},
+        "equivalence": {"verdict": cmp["verdict"], "n_fail": cmp["n_fail"],
+                        "checks": cmp["checks"]},
+        "boundaries": br, "bubbles": [], "graphWindow": {},
+        "validation_errors": len(errors),
     }
     jp = cfg["demo"]["output"]["json_output"]
     os.makedirs(os.path.dirname(jp), exist_ok=True)
     json.dump(data, open(jp, "w"), indent=2)
-    print(f"Baseline: {bg.node_count()}n {bg.edge_count()}e")
-    print(f"Merged: {merged.node_count()}n {merged.edge_count()}e")
     print(f"JSON: {jp}")
     print("Run: cd web && npm run dev")
 

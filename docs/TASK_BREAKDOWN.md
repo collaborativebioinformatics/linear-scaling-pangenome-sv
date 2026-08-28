@@ -21,25 +21,14 @@ Ali web (data pipeline) -> Alexander D1 (documentation)
 
 ---
 
-## Q1 — Quang: Overlap-Aware Stitch (HARD BLOCKER)
+## Q1 — Quang: Overlap-Aware Stitch — DONE
 
 ### Current State
-- Algorithm exists on `origin/quang-overlap-aware-merge` branch
-- `pipeline/merge/merge_graphs.py` has `overlap_aware_stitch()` function
-- `pipeline/merge/gfa.py` on main has correct W-line parser + all 11 helpers
-- **Two bugs blocking integration** (from MERGE_NOTES.md)
-
-### Bug 1: `setup_demo.py` ignores `config.merge.strategy`
-**File:** `scripts/setup_demo.py` line ~117
-**Fix:** Read `config.merge.strategy` instead of hardcoding `diagnostic_disjoint_union()`
-
-### Bug 2: `_load_chunks` hardcodes path
-**File:** `pipeline/merge/merge_graphs.py`
-**Fix:** Make `chunk_dir` a parameter defaulting to `work/chunks`
-
-### Bug 3: `overlap_aware_stitch` requires `chunk_rows`
-**File:** `pipeline/merge/merge_graphs.py`
-**Fix:** Auto-discover from `chunk_manifest.tsv` when not provided
+- `overlap_aware_stitch()` on main
+- `setup_demo.py` reads `config.merge.strategy` (default overlap_aware)
+- `_load_chunks(cm_path, chunk_dir=...)` finds `work/demo/chunks` and `work/chunks`
+- `chunk_rows` inferred from a nearby `chunk_manifest.tsv` when omitted
+- `tests/test_merge.py` covers sequence identity, no invented edges, demo wiring
 
 ### Acceptance Criteria
 ```bash
@@ -47,6 +36,7 @@ make demo
 # Expected: "Strategy: overlap_aware" in output
 # Expected: 5 components (not 15), EQUIVALENT verdict
 ```
+Met: 5 paths, 5 components, Verdict: EQUIVALENT, Boundaries 2/2 PASS.
 
 ### Merge Instructions
 ```bash
