@@ -44,6 +44,13 @@ Full editable deck: [`methods_slides.pptx`](methods_slides.pptx)
 
 ---
 
+## Benchmark Figures
+
+- [Speed comparison](slides/speed_comparison.html) — monolithic vs. chunked, sequential vs. parallel
+- [Speed vs. accuracy](slides/speed_vs_accuracy.html) — F1 against wall time
+- [Scaling by sample count](slides/scaling_by_sample_count.html) — projected, O(N²) model
+- [Scaling by genome length](slides/scaling_by_genome_length.html) — projected, linear fit to real data
+
 ## Who Is Doing What?
 
 **Full task breakdown with commands, file paths, and acceptance criteria:**
