@@ -248,33 +248,54 @@ export default function Home() {
   };
 
   return (<>
-      {/* ===== HERO ===== */}
-      <section style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e40af 50%, #3b82f6 100%)", color: "#fff", padding: "80px 20px 60px", textAlign: "center" }}>
-        <div className="container" style={{ maxWidth: 780 }}>
-          <h1 style={{ fontSize: 42, fontWeight: 900, margin: "0 0 16px", letterSpacing: "-0.5px" }}>
-            Parallel Pangenome<br />Graph Construction
-          </h1>
-          <p style={{ fontSize: 20, opacity: 0.92, margin: "0 auto 32px", maxWidth: 600, lineHeight: 1.6 }}>
-            Can we build pangenome graphs in parallel chunks, stitch them back together,
-            and get the same result as building the whole thing at once?
-          </p>
-          <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
-            <span className={"badge "+(dataMode==="synthetic"?"badge-demo":"badge-real")}>{dataMode==="synthetic"?"SYNTHETIC DEMO":"REAL HPRC DATA"}</span>
-            <span className={"badge "+(eqVerdict==="EQUIVALENT"?"badge-ok":"badge-warn")}>{eqVerdict==="EQUIVALENT"?"✓ EQUIVALENT":"NOT_RUN"}</span>
+      {/* ===== HERO — simple language ===== */}
+      <section style={{ background: "linear-gradient(160deg, #0c1929 0%, #1a365d 40%, #2563eb 100%)", color: "#fff", padding: "70px 20px 50px", textAlign: "center" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>🧬</div>
+          <h1 style={{ fontSize: 36, fontWeight: 900, margin: "0 0 12px", lineHeight: 1.3 }}>Can We Build Pangenome Graphs in Parallel?</h1>
+          <p style={{ fontSize: 17, opacity: 0.9, margin: "0 auto 24px", maxWidth: 520, lineHeight: 1.7 }}>Normally, building a pangenome graph requires comparing every genome against every other — very slow. We are testing a new approach: <strong>build small pieces in parallel</strong>, then stitch them back together.</p>
+          <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+            <span className={"badge "+(dataMode==="synthetic"?"badge-demo":"badge-real")}>{dataMode==="synthetic"?"🧪 Demo Data":"🧬 Real Data"}</span>
+            <span className={"badge "+(eqVerdict==="EQUIVALENT"?"badge-ok":"badge-warn")}>{eqVerdict==="EQUIVALENT"?"✅ It Matches":"⏳ Testing"}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== WHAT IS THIS? ===== */}
+      <section style={{ padding: "50px 20px", background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto" }}>
+          <h2 style={{ fontSize: 24, textAlign: "center", marginBottom: 32, color: "#1e293b" }}>What Are We Actually Doing?</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, fontSize: 14 }}>
+            <div style={{ textAlign: "center", padding: 20, background: "#f0f9ff", borderRadius: 12 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🧬</div>
+              <h4 style={{ margin: "0 0 8px", color: "#1e293b" }}>Genomes</h4>
+              <p style={{ color: "#475569", lineHeight: 1.6, margin: 0 }}>Each person has unique DNA. We compare 5 versions: one reference + 4 from real people.</p>
+            </div>
+            <div style={{ textAlign: "center", padding: 20, background: "#f0fdf4", borderRadius: 12 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🕸️</div>
+              <h4 style={{ margin: "0 0 8px", color: "#1e293b" }}>Pangenome Graph</h4>
+              <p style={{ color: "#475569", lineHeight: 1.6, margin: 0 }}>Instead of comparing to one reference, a graph shows where genomes share the same route and where they take different paths.</p>
+            </div>
+            <div style={{ textAlign: "center", padding: 20, background: "#fff7ed", borderRadius: 12 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
+              <h4 style={{ margin: "0 0 8px", color: "#1e293b" }}>Our Idea</h4>
+              <p style={{ color: "#475569", lineHeight: 1.6, margin: 0 }}>Split the genome into pieces, build each piece in parallel, then stitch together. Much faster.</p>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ===== HOW IT WORKS ===== */}
       <section style={{ padding: "60px 20px", background: "#f8fafc" }}>
-        <div className="container" style={{ maxWidth: 900 }}>
-          <h2 style={{ fontSize: 28, textAlign: "center", marginBottom: 40 }}>How It Works</h2>
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          <h2 style={{ fontSize: 24, textAlign: "center", marginBottom: 8, color: "#1e293b" }}>How It Works — Five Steps</h2>
+          <p style={{ textAlign: "center", color: "#64748b", marginBottom: 36, fontSize: 15 }}>Explained in plain English.</p>
           <div className="steps-grid">
-            <Step n="1" title="Select Region" desc="Target a ~1 Mb interval on chr21 (20–21 Mb) using GRCh38 as reference." />
-            <Step n="2" title="Map Haplotypes" desc="Align 4 HPRC haplotypes independently against the reference using minimap2." />
-            <Step n="3" title="Build in Parallel" desc="Split region into overlapping 400 Kb chunks. Run PGGB on each chunk independently on DNAnexus." />
-            <Step n="4" title="Stitch Graphs" desc="Our overlap-aware algorithm welds chunk graphs at shared boundaries. 2/2 boundaries PASS in demo." />
-            <Step n="5" title="Validate" desc={`Compare against monolithic baseline. ${eqVerdict==="EQUIVALENT"?eqVerdict:"Validation pending"}.`} />
+            <PlainStep emoji="📍" title="Pick a Region" desc="We focus on a tiny slice of chromosome 21 — just 1 million DNA letters. Small enough to test fast, big enough to matter." />
+            <PlainStep emoji="🗺️" title="Line Everyone Up" desc="We find where each person's DNA matches our reference — like aligning everyone to the same starting line." />
+            <PlainStep emoji="✂️" title="Split and Build" desc="We cut the region into overlapping 400 Kb chunks and build a little graph for each. All chunks run at the same time." />
+            <PlainStep emoji="🪡" title="Stitch Together" desc="Our algorithm finds the overlapping edges between chunks and joins them — like connecting puzzle pieces." />
+            <PlainStep emoji="✅" title="Check Our Work" desc={`We compare against building the whole thing in one go (no splitting). Result: ${eqVerdict==="EQUIVALENT"?"they match! 🎉":"testing now"}`} />
           </div>
         </div>
       </section>
@@ -296,10 +317,10 @@ export default function Home() {
   </>);
 }
 
-function Step({ n, title, desc }: { n: string; title: string; desc: string }) {
+function PlainStep({ emoji, title, desc }: { emoji: string; title: string; desc: string }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 12, padding: 24, border: "1px solid #e2e8f0", display: "flex", gap: 16, alignItems: "flex-start" }}>
-      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "50%", background: "#3b82f6", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{n}</span>
+    <div style={{ background: "#fff", borderRadius: 12, padding: 24, border: "1px solid #e2e8f0", display: "flex", gap: 14, alignItems: "flex-start", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <span style={{ fontSize: 28, flexShrink: 0, lineHeight: 1 }}>{emoji}</span>
       <div>
         <h4 style={{ margin: "0 0 4px", fontSize: 15, color: "#1e293b" }}>{title}</h4>
         <p style={{ margin: 0, fontSize: 13, color: "#64748b", lineHeight: 1.6 }}>{desc}</p>

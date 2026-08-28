@@ -346,6 +346,7 @@ pre, code {
   font-size: 13px;
   margin: 0 0 8px;
   color: #334155;
+}
 .steps-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -388,5 +389,4 @@ pre, code {
 }
 @media (max-width: 768px) {
   .steps-grid { grid-template-columns: 1fr; }
-}
 }
