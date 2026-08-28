@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Real wall time: monolithic vs. chunked</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #2C2C2A; background: #FBFAF6; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.note { color: #5F5E5A; font-size: 13px; margin: 0 0 20px; }
+  .card { background: #fff; border: 1px solid #E5E3D8; border-radius: 12px; padding: 24px; }
+</style>
+</head>
+<body>
+<h1>Real wall time: monolithic vs. chunked</h1>
+<p class="note">Measured directly from PGGB run_metadata.json and the stitch step's wall-clock. Real chr21:20,000,000&ndash;21,000,000 smoke test, 4 HPRC haplotypes + GRCh38.</p>
+<div class="card"><canvas id="speedChart"></canvas></div>
+<script>
+const GRAY = "#5F5E5A", CORAL = "#993C1D", BLUE = "#185FA5";
+new Chart(document.getElementById("speedChart"), {
+  type: "bar",
+  data: {
+    labels: ["Monolithic baseline", "Chunked — sequential", "Chunked — parallel"],
+    datasets: [{ data: [136.2, 309.7, 107.0], backgroundColor: [GRAY, CORAL, BLUE], borderRadius: 6 }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: "#5F5E5A" }, grid: { display: false } },
+      y: { ticks: { color: "#5F5E5A" }, grid: { color: "#E5E3D8" }, title: { display: true, text: "Seconds", color: "#5F5E5A" } }
+    }
+  }
+});
+</script>
+</body>
+</html>

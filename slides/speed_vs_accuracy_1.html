@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Speed vs. accuracy (F1)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #2C2C2A; background: #FBFAF6; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.note { color: #5F5E5A; font-size: 13px; margin: 0 0 20px; }
+  .card { background: #fff; border: 1px solid #E5E3D8; border-radius: 12px; padding: 24px; }
+</style>
+</head>
+<body>
+<h1>Speed vs. accuracy (F1)</h1>
+<p class="note">vg deconstruct + Truvari bench, baseline vs. chunked-and-stitched graph. Sequential and parallel share the identical merged graph, so identical accuracy — only wall time differs.</p>
+<div class="card"><canvas id="f1Chart"></canvas></div>
+<script>
+const GRAY = "#5F5E5A", CORAL = "#993C1D", BLUE = "#185FA5";
+new Chart(document.getElementById("f1Chart"), {
+  type: "scatter",
+  data: {
+    datasets: [
+      { label: "Baseline", data: [{x: 136.2, y: 1.0}], backgroundColor: GRAY, pointRadius: 8 },
+      { label: "Chunked — sequential", data: [{x: 309.7, y: 0.96}], backgroundColor: CORAL, pointRadius: 8 },
+      { label: "Chunked — parallel", data: [{x: 107.0, y: 0.96}], backgroundColor: BLUE, pointRadius: 8 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: "#2C2C2A" } } },
+    scales: {
+      x: { ticks: { color: "#5F5E5A" }, grid: { color: "#E5E3D8" }, title: { display: true, text: "Wall time (seconds)", color: "#5F5E5A" } },
+      y: { min: 0.9, max: 1.02, ticks: { color: "#5F5E5A" }, grid: { color: "#E5E3D8" }, title: { display: true, text: "F1 score", color: "#5F5E5A" } }
+    }
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Projected wall time vs. genome length</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #2C2C2A; background: #FBFAF6; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.note { color: #5F5E5A; font-size: 13px; margin: 0 0 20px; }
+  .card { background: #fff; border: 1px solid #E5E3D8; border-radius: 12px; padding: 24px; }
+</style>
+</head>
+<body>
+<h1>Projected wall time vs. genome length</h1>
+<p class="note">Linear fit to 4 real measurements at N=5 (baseline + 3 real chunk sizes). Assumes enough parallel workers to run every chunk simultaneously — this is the axis chunking actually changes the growth curve for.</p>
+<div class="card"><canvas id="lengthChart"></canvas></div>
+<script>
+const CORAL = "#993C1D", BLUE = "#185FA5";
+new Chart(document.getElementById("lengthChart"), {
+  type: "line",
+  data: {
+    labels: ["1 (measured)", "5", "10", "25", "46.7 (full chr21)", "100"],
+    datasets: [
+      { label: "Baseline (monolithic)", data: [135.8, 341.4, 598.4, 1369.4, 2484.8, 5224.4], borderColor: CORAL, backgroundColor: CORAL, tension: 0.15 },
+      { label: "Chunked — parallel", data: [105.3, 106.8, 108.6, 114.3, 122.4, 142.35], borderColor: BLUE, backgroundColor: BLUE, tension: 0.15 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: "#2C2C2A" } } },
+    scales: {
+      x: { ticks: { color: "#5F5E5A" }, grid: { display: false }, title: { display: true, text: "Genome length (Mb)", color: "#5F5E5A" } },
+      y: { ticks: { color: "#5F5E5A" }, grid: { color: "#E5E3D8" }, title: { display: true, text: "Wall time (seconds)", color: "#5F5E5A" } }
+    }
+  }
+});
+</script>
+</body>
+</html>

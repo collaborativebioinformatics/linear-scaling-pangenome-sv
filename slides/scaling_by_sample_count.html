@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Projected wall time vs. sample count</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #2C2C2A; background: #FBFAF6; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.note { color: #5F5E5A; font-size: 13px; margin: 0 0 20px; }
+  .card { background: #fff; border: 1px solid #E5E3D8; border-radius: 12px; padding: 24px; }
+</style>
+</head>
+<body>
+<h1>Projected wall time vs. sample count</h1>
+<p class="note">O(N&sup2;) model anchored to real N=5 measurements. Both strategies scale at the same rate — chunking gives a constant-factor speedup only, not a change in growth order, since PGGB still does full all-vs-all alignment within each chunk.</p>
+<div class="card"><canvas id="sampleChart"></canvas></div>
+<script>
+const CORAL = "#993C1D", BLUE = "#185FA5";
+new Chart(document.getElementById("sampleChart"), {
+  type: "line",
+  data: {
+    labels: ["5 (measured)", "10", "25", "50", "100", "200"],
+    datasets: [
+      { label: "Baseline (monolithic) — projected", data: [136.2, 544.8, 3405, 13620, 54480, 217920], borderColor: CORAL, backgroundColor: CORAL, tension: 0.15 },
+      { label: "Chunked — parallel — projected", data: [107, 428, 2675, 10700, 42800, 171200], borderColor: BLUE, backgroundColor: BLUE, tension: 0.15 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: "#2C2C2A" } } },
+    scales: {
+      x: { ticks: { color: "#5F5E5A" }, grid: { display: false }, title: { display: true, text: "Number of haplotypes (N)", color: "#5F5E5A" } },
+      y: { type: "logarithmic", ticks: { color: "#5F5E5A" }, grid: { color: "#E5E3D8" }, title: { display: true, text: "Wall time (seconds, log scale)", color: "#5F5E5A" } }
+    }
+  }
+});
+</script>
+</body>
+</html>
