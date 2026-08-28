@@ -39,7 +39,7 @@ pggb:
     # -s: segment length for homopolymer compression — graph-shaping parameter
     segment_length: 5000
     # -K: k-mer size for Mash sketch (minimizer) — controls sensitivity
-    mash_kmer: 31
+    mash_kmer: 19
     # -k: minimum exact-match length for seqwish match — affects graph complexity
     match_length: 29
     # -j: smoothxg maximum path jump — gaps allowed when building layout

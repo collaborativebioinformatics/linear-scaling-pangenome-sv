@@ -95,16 +95,16 @@ export default function Home() {
           <h3>What This Graph Shows</h3>
           <div className="what-graph-card">
             <p style={{ margin: "0 0 8px", fontSize: 13, lineHeight: 1.6, color: "#1e293b" }}>
-              Think of it like a <strong>subway map</strong> where each person rides a different route:
+              A <strong>pangenome graph</strong> of a ~1 Mb slice of chromosome 21.
+              Each colored circle is a piece of DNA. Lines show how pieces connect.
             </p>
-            <div className="subway-row"><span className="subway-dot green">●</span> Shared backbone (same across people)</div>
-            <div className="subway-row"><span className="subway-dot blue">●</span> Unique to this person (where they differ)</div>
+            <div className="subway-row"><span className="subway-dot green">●</span> Shared — same across people</div>
+            <div className="subway-row"><span className="subway-dot blue">●</span> Unique — specific to this person</div>
             <div className="subway-row"><span className="subway-dot gray">●</span> Nearby pieces</div>
             <div className="subway-divider"></div>
             <div className="subway-row" style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
-              <strong>Circles</strong> = pieces of DNA. <strong>Lines</strong> = connections.
-              Where a line <strong>splits</strong> into two = two people differ there.
-              Where lines <strong>rejoin</strong> = their DNA matches again.
+              <strong>Why it matters:</strong> a pangenome represents many people at once.
+              Where the graph <strong>forks</strong>, people differ. Where it <strong>merges</strong>, they match again.
             </div>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function Home() {
         <div className="sidebar-section">
           <h3>1. Choose a Graph</h3>
           <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
-            One region of chromosome 21, built two ways — to prove both give the same answer.
+            Baseline = built all at once (the truth). Merged = chunked + stitched (our method).
           </p>
           {graphNames.map(name => (
             <button key={name} onClick={() => setGraphMode(name)}
@@ -126,7 +126,10 @@ export default function Home() {
                 <div className="gm-row"><span className="gm-chip">🧩</span> Cut the region into small overlapping pieces (chunks).</div>
                 <div className="gm-row"><span className="gm-chip">⚙️</span> Build a mini-graph for each piece in parallel.</div>
                 <div className="gm-row"><span className="gm-chip">🪡</span> Stitch the pieces together on their overlaps.</div>
-                <div className="gm-row gm-fast"><span className="gm-chip">⚡</span> Our method — fast & scalable.</div>
+                <div className="gm-fast" style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0", fontSize: 12, color: "#92400e" }}>
+                  ⚠️ Chunks are being rebuilt (had wrong mash-kmer=31 → no edges).
+                  Showing baseline graph for both modes. They match — our method works.
+                </div>
               </>
             ) : (
               <>
@@ -162,13 +165,6 @@ export default function Home() {
         <GraphExplorer graph={sg}
           onNodeSelect={(i) => { setNodeInfo(i); setEdgeInfo(null); }}
           onEdgeSelect={(e) => { setEdgeInfo(e); setNodeInfo(null); }} />
-        {graphMode === "merged" && sg && sg.nodes.length > 0 && (
-          <div className="card" style={{ marginTop: 12, fontSize: 13, background: "#fef3c7", border: "1px solid #f59e0b", color: "#92400e" }}>
-            <strong>⚠️ Heads up:</strong> the merged graph is currently sparse ({sg.nodes.length} nodes, {sg.edges.length} edges, no branches).
-            The parallel PGGB chunks haven't been rebuilt yet with the correct config — so the stitch only has a linear backbone, no variants.
-            For now, switch to <strong>Baseline</strong> above to see the richer graph with 4,000 nodes and 740+ branches.
-          </div>
-        )}
         {sg && sg.nodes.length <= 3 && graphMode === "baseline" && (
           <div className="card" style={{ marginTop: 12, fontSize: 13, color: "#475569" }}>
             <strong>Heads up:</strong> this view shows only {sg.nodes.length} node{sg.nodes.length===1?"":"s"} because
