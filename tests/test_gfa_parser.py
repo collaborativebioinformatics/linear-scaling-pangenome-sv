@@ -481,6 +481,16 @@ class TestP0Regression:
         assert "*final.gfa" in c
         assert "find output -name \"*.gfa\" -type f | head -1" not in c
 
+    def test_pggb_applets_index_fasta_before_pggb(self):
+        """PGGB refuses to run without samtools faidx next to the FASTA."""
+        for path in (
+            "dnanexus/applets/pggb_chunk/src/code.sh",
+            "dnanexus/applets/pggb_baseline/src/code.sh",
+        ):
+            with open(path) as f:
+                c = f.read()
+            assert "samtools faidx" in c, path
+
     def test_baseline_applet_exists(self):
         """item 6: pggb_baseline applet with dxapp.json and code.sh."""
         assert os.path.exists("dnanexus/applets/pggb_baseline/dxapp.json")

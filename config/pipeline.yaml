@@ -52,8 +52,9 @@ pggb:
     # NOTE: -K (mash k-mer) and -k (seqwish match) are distinct parameters.
 
   # Immutable image reference — NEVER use :latest for scientific benchmarks.
-  # Pinned to a specific digest for reproducibility.
-  image: ghcr.io/pangenome/pggb@sha256:2e89b1d1e4f48b33e5af8c4bd677e8145f953d80cbedc86e8b525ce5a27a6c38
+  # Digest pulled successfully on DNAnexus Group11_2026 (chunk PGGB 2026-08-28).
+  # The previous sha256:2e89b1d1… is unpublished (docker: manifest unknown).
+  image: ghcr.io/pangenome/pggb@sha256:44f3563c5c3e2032c293fe309eed178b754021b07963ca4857e4ae5efda86474
   image_tag: v0.6.0
 
 merge:
