@@ -32,7 +32,7 @@ export default function GraphExplorer({
       group: "nodes",
       data: { id: n.id, label: n.id, length: n.length,
         onPath: n.on_selected_path, onRef: n.on_reference, degree: n.degree },
-      classes: (n.on_selected_path ? "onpath " : "") + (n.on_reference ? "onref" : ""),
+      classes: n.on_reference ? "onref" : n.on_selected_path ? "onpath" : "",
     }));
     els.push(...g.edges.map((e: GraphEdge) => ({
       group: "edges",
@@ -127,7 +127,9 @@ export default function GraphExplorer({
     cy.on("mouseover", "node", (evt: EventObject) => {
       const n = evt.target; const d = n.data();
       const pos = n.renderedPosition();
-      const role = d.onRef ? "shared with others" : d.onPath ? "this person only" : "other";
+      const role = d.onRef && d.onPath ? "shared backbone + this person" :
+                   d.onRef ? "shared with others" :
+                   d.onPath ? "unique to this person" : "other";
       const kb = ((d.length || 0) / 1000).toFixed(1);
       setTooltip({
         x: pos.x, y: pos.y,

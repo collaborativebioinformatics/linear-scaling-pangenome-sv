@@ -97,8 +97,8 @@ export default function Home() {
             <p style={{ margin: "0 0 8px", fontSize: 13, lineHeight: 1.6, color: "#1e293b" }}>
               Think of it like a <strong>subway map</strong> where each person rides a different route:
             </p>
-            <div className="subway-row"><span className="subway-dot blue">●</span> This person's DNA path</div>
-            <div className="subway-row"><span className="subway-dot green">●</span> DNA pieces shared with others (the common backbone)</div>
+            <div className="subway-row"><span className="subway-dot green">●</span> Shared backbone (same across people)</div>
+            <div className="subway-row"><span className="subway-dot blue">●</span> Unique to this person (where they differ)</div>
             <div className="subway-row"><span className="subway-dot gray">●</span> Nearby pieces</div>
             <div className="subway-divider"></div>
             <div className="subway-row" style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
@@ -140,7 +140,7 @@ export default function Home() {
         <div className="sidebar-section">
           <h3>2. Choose a Person</h3>
           <p className="sidebar-note" style={{ marginTop: 0, marginBottom: 8 }}>
-            Their DNA path is traced in blue. Green = shared with other people.
+            Green = shared with others. Blue = unique to them.
           </p>
           {samples.map(s => (
             <div key={s.sample}>
