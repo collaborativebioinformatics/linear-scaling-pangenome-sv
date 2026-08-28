@@ -56,7 +56,7 @@ def main():
     # Build canonical PGGB command — identical parameters to the applets.
     cmd = [
         "docker", "run", "--rm",
-        "-v", f"{os.path.dirname(input_fa)}:/data/input:ro",
+        "-v", f"{os.path.dirname(input_fa)}:/data/input",
         "-v", f"{outdir}:/data/output",
         cfg["image"],
         "bash", "-lc",
