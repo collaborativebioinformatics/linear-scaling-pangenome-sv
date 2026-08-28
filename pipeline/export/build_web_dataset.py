@@ -30,9 +30,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from pipeline.merge.gfa import GfaGraph, parse_pansn, _split_orient
 
-WEB_GRAPH_MAX_NODES = int(os.environ.get("WEB_GRAPH_MAX_NODES", "1500"))
-WEB_GRAPH_MAX_EDGES = int(os.environ.get("WEB_GRAPH_MAX_EDGES", "4000"))
-WEB_GRAPH_MAX_PATH_STEPS = int(os.environ.get("WEB_GRAPH_MAX_PATH_STEPS", "5000"))
+WEB_GRAPH_MAX_NODES = int(os.environ.get("WEB_GRAPH_MAX_NODES", "4000"))
+WEB_GRAPH_MAX_EDGES = int(os.environ.get("WEB_GRAPH_MAX_EDGES", "10000"))
+WEB_GRAPH_MAX_PATH_STEPS = int(os.environ.get("WEB_GRAPH_MAX_PATH_STEPS", "20000"))
 
 
 def _samples_from_graph(g):
@@ -97,14 +97,14 @@ def _extract_sample_graph(g, sample, hap, graph_label):
         selected.add(seg)
 
     include = set(selected)
-    shared_path = _build_shared_nodes(g)
-    # Always include shared nodes so the common backbone is visible.
-    include |= shared_path
     for link in g.links:
         if link.from_node in selected:
             include.add(link.to_node)
         if link.to_node in selected:
             include.add(link.from_node)
+
+    # Compute shared nodes from the full graph for coloring only.
+    shared_path = _build_shared_nodes(g)
 
     degree = {}
     neighbors = {}
@@ -114,6 +114,9 @@ def _extract_sample_graph(g, sample, hap, graph_label):
             degree[link.to_node] = degree.get(link.to_node, 0) + 1
             neighbors.setdefault(link.from_node, set()).add(link.to_node)
             neighbors.setdefault(link.to_node, set()).add(link.from_node)
+
+    # Compute shared nodes from the full graph for coloring only.
+    shared_path = _build_shared_nodes(g)
 
     nodes = []
     for seg_name in include:
@@ -151,6 +154,9 @@ def _extract_sample_graph(g, sample, hap, graph_label):
     original_edges = len(edges)
     truncated = original_nodes > WEB_GRAPH_MAX_NODES or original_edges > WEB_GRAPH_MAX_EDGES
     nodes = nodes[:WEB_GRAPH_MAX_NODES]
+    # Filter edges to only those whose both endpoints are in the truncated node set.
+    truncated_ids = set(n["id"] for n in nodes)
+    edges = [e for e in edges if e["source"] in truncated_ids and e["target"] in truncated_ids]
     edges = edges[:WEB_GRAPH_MAX_EDGES]
 
     path_steps = [{"node": seg, "orientation": orient} for seg, orient in steps]
