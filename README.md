@@ -80,7 +80,10 @@ Full editable deck: [`methods_slides.pptx`](methods_slides.pptx)
 
 ---
 
-## Benchmark Figures
+## Results - Benchmark Figures
+
+<img src="slides/results_1.png" width="800"><br>
+<img src="slides/results_2.png" width="800">
 
 - [Speed comparison](slides/speed_comparison.html) — monolithic vs. chunked, sequential vs. parallel
 - [Speed vs. accuracy](slides/speed_vs_accuracy.html) — F1 against wall time
