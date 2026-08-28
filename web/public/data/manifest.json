@@ -1,0 +1,64 @@
+{
+  "schema_version": "1",
+  "run_id": "latest",
+  "data_mode": "synthetic",
+  "target": {
+    "reference": "GRCh38",
+    "chromosome": "chr21",
+    "start": 0,
+    "end": 0
+  },
+  "pipeline_status": {
+    "baseline": "IMPLEMENTED",
+    "parallel_chunks": "IMPLEMENTED",
+    "stitch": "IMPLEMENTED",
+    "equivalence": "NOT_RUN"
+  },
+  "samples": [
+    {
+      "sample": "GRCh38",
+      "haplotypes": [
+        "0"
+      ],
+      "hap_labels": {
+        "0": "reference"
+      }
+    },
+    {
+      "sample": "HG00673",
+      "haplotypes": [
+        "1",
+        "2"
+      ],
+      "hap_labels": {
+        "1": "paternal",
+        "2": "maternal"
+      }
+    },
+    {
+      "sample": "HG00733",
+      "haplotypes": [
+        "1",
+        "2"
+      ],
+      "hap_labels": {
+        "1": "paternal",
+        "2": "maternal"
+      }
+    }
+  ],
+  "graphs": {
+    "baseline": {
+      "nodes": 502,
+      "edges": 497,
+      "paths": 5,
+      "walks": 0
+    },
+    "merged": {
+      "nodes": 511,
+      "edges": 506,
+      "paths": 5,
+      "walks": 0
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "schema_version": "1",
+  "target": {
+    "reference": "GRCh38",
+    "chromosome": "chr21",
+    "start": 0,
+    "end": 0
+  },
+  "chunks": [
+    {
+      "chunk_id": "chunk_0001",
+      "chrom": "chr21",
+      "reference_start": 20000000,
+      "reference_end": 20425000,
+      "core_start": 20000000,
+      "core_end": 20400000,
+      "overlap_left": 0,
+      "overlap_right": 25000,
+      "pairwise_overlap_bp": 50000
+    },
+    {
+      "chunk_id": "chunk_0002",
+      "chrom": "chr21",
+      "reference_start": 20375000,
+      "reference_end": 20825000,
+      "core_start": 20400000,
+      "core_end": 20800000,
+      "overlap_left": 25000,
+      "overlap_right": 25000,
+      "pairwise_overlap_bp": 50000
+    },
+    {
+      "chunk_id": "chunk_0003",
+      "chrom": "chr21",
+      "reference_start": 20775000,
+      "reference_end": 21000000,
+      "core_start": 20800000,
+      "core_end": 21000000,
+      "overlap_left": 25000,
+      "overlap_right": 0,
+      "pairwise_overlap_bp": 50000
+    }
+  ],
+  "graphs": {
+    "baseline": {
+      "nodes": 502,
+      "edges": 497,
+      "paths": 5,
+      "walks": 0
+    },
+    "merged": {
+      "nodes": 511,
+      "edges": 506,
+      "paths": 5,
+      "walks": 0
+    }
+  },
+  "pipeline_status": {
+    "baseline": "IMPLEMENTED",
+    "parallel_chunks": "IMPLEMENTED",
+    "stitch": "IMPLEMENTED",
+    "equivalence": "NOT_RUN"
+  }
+}

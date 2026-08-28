@@ -35,7 +35,7 @@ Legend: **Implemented** = code exists and wired; **Static** = source/type checks
 | Boundary validation | PASS | PASS | PASS (2/2) | NOT_RUN | NOT_RUN | SYNTHETIC_VALIDATED |
 | Path equivalence | PASS | PASS | PASS (EQUIVALENT) | NOT_RUN | NOT_RUN | SYNTHETIC_VALIDATED |
 | Variant equivalence | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN |
-| Web dataset (A6) | FAIL (missing) | N/A | N/A | N/A | N/A | **MISSING** |
+| Web dataset (A6) | PASS | PASS | PASS | N/A | N/A | PASS |
 | Graph explorer | PASS | PASS | PASS | N/A | N/A | PASS |
 | Dashboard | PASS | PASS | PASS | N/A | N/A | PASS |
 | Chunks | PASS | PASS | PASS | N/A | N/A | PASS |
@@ -87,9 +87,7 @@ time. Applet IDs previously built were not re-verified.
 ## Remaining Blockers
 
 1. **Real HPRC validation** — requires DNAnexus re-auth + full 1 Mb run.
-2. **Web dataset pipeline (A6)** — `pipeline/export/build_web_dataset.py`
-   not yet created. Frontend currently generates synthetic graphs in-browser.
-3. **Variant equivalence** — requires real baseline + real stitched graph +
+2. **Variant equivalence** — requires real baseline + real stitched graph +
    vg/truvari on DNAnexus.
 
 ## DO NOT CLAIM

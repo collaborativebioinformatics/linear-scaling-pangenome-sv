@@ -9,7 +9,7 @@ help:
 	@echo "  Validation:   make linear && make variants"
 
 check:;	@bash scripts/check_environment.sh
-demo:;	@echo "=== Demo ===" && python3 scripts/setup_demo.py
+demo:;	@echo "=== Demo ===" && python3 scripts/setup_demo.py && python3 pipeline/export/build_web_dataset.py && python3 scripts/sync_web_results.py
 test:;	@python3 -m pytest tests/ -v
 web:;	@cd web && npm run dev
 setup:;	@pip install pyyaml pytest && cd web && npm install

@@ -3,8 +3,16 @@
 
 > **Research question:** Can regional pangenome graphs be constructed independently in parallel and subsequently reassembled into a single graph while preserving haplotype paths, topology, sequence content, and variant representation relative to a conventionally constructed monolithic graph?
 ## Quick Start
-!!!! to be added soon :) !!!!
----
+
+```bash
+# Local synthetic demo (no DNAnexus needed)
+make check      # Check environment
+make demo       # Generate synthetic data, build GFAs, stitch, export web JSON
+make test       # Run 167 tests
+make web        # Start Next.js dev server at http://localhost:3000
+```
+
+For the interactive web explorer, see [Web Explorer](#web-explorer) below.
 
 <img width="2347" height="1660" alt="logo" src="https://github.com/user-attachments/assets/e0a37556-7659-4a01-becb-7b6bf4b1e008" />
 
@@ -46,7 +54,7 @@ Full editable deck: [`methods_slides.pptx`](methods_slides.pptx)
 | **Quang** | Pipeline architecture + graph merging | ✅ **Q1–Q3:** overlap-aware stitch, `tests/test_merge.py`, boundary report. `make demo` → Strategy: overlap_aware, EQUIVALENT, 5 components. |
 | **Michael** | Pangenome graph construction | M1: Run real PGGB applet on DNAnexus (micro-test). M2/M3: Build baseline + chunk graphs on DNAnexus. M4: Full 1 Mb smoke test. |
 | **Khoi** | Pipeline + linear/assembly workflow | K1: Dipcall wrapper validation. K2: SVIM-asm wrapper. K3: Truvari variant comparison. K4: Method documentation. |
-| **Ali** | Pipeline + DNAnexus + integration + web | ✅ A1-A5 complete. 🔵 **A6-A10 (current):** Web visualization — data export pipeline, benchmark display, chunk visualization, compare mode, Vercel deploy. |
+| **Ali** | Pipeline + DNAnexus + integration + web | ✅ A1-A5 complete. ✅ A6 (web dataset export) complete. 🔵 **A7-A10 (current):** benchmark display polish, chunk visualization, compare mode, Vercel deploy. |
 | **Alexander** | Documentation + presentation | D1: Update architecture doc. D2: DNAnexus operations guide. D3: Web visualization guide. D4: Final presentation. |
 | **Lex** | PGGB benchmarking | L1: Local PGGB cost benchmarks. L2: Graph cost model. L3: Document findings. L4: Merge into pipeline. |
 
@@ -103,9 +111,10 @@ HPRC Release 2 (4 haplotypes + GRCh38)
 | Merge (disjoint union) | ✅ | Namespace-safe concatenation, diagnostic only |
 | Overlap-aware stitch | ✅ | `overlap_aware_stitch()`; `make demo` EQUIVALENT, 5 components |
 | Synthetic demo | ✅ | `make demo` generates full vertical slice |
-| Tests | ✅ | GFA, chunking, merge (`tests/test_merge.py`), interval mapping, W-line, provenance, graph stats |
-| Web explorer | ✅ Interactive | Cytoscape.js graph, sample/haplotype selector, inspector, 4 tabs |
-| Web JSON guard | ✅ | `guard_no_genomic()` blocks GFA/FASTA/VCF |
+| Tests | ✅ | GFA, chunking, merge (`tests/test_merge.py`), PGGB config, web dataset export, interval mapping, W-line, provenance, graph stats — 167 pass, 2 skip |
+| Web explorer | ✅ Interactive | Cytoscape.js graph, sample/haplotype selector, inspector, 4 tabs, real JSON loading |
+| Web dataset export | ✅ | `pipeline/export/build_web_dataset.py` — GFA → bounded compact JSON (no sequences) |
+| Web JSON guard | ✅ | `guard_no_genomic()` blocks GFA/FASTA/VCF/BAM/CRAM; `WEB_MAX_FILE_MB` size guard |
 | DNAnexus applets | ✅ Built | `pggb_chunk` + `pggb_baseline`, instance `mem3_ssd1_v2_x16` |
 | DNAnexus dry-run | ✅ | 3 chunks validated, FATAL checks verified |
 | Graph statistics | ✅ | Full topology, comparison, TSV export |
@@ -121,7 +130,7 @@ HPRC Release 2 (4 haplotypes + GRCh38)
 ```bash
 make check      # Check environment
 make demo       # Generate synthetic data, build GFAs, merge, export JSON
-make test       # Run 36+ tests
+make test       # Run 167 tests
 make web        # Start Next.js dev server at http://localhost:3000
 ```
 
@@ -133,6 +142,59 @@ git pull origin main
 bash dnanexus/setup_workstation.sh   # One-time setup
 bash dnanexus/run_pipeline.sh --upload  # Full pipeline
 ```
+
+## Web Explorer
+
+The web explorer is a Next.js + React + TypeScript app using Cytoscape.js for
+interactive graph rendering.
+
+```bash
+cd web
+npm ci          # install dependencies
+npm run dev     # start dev server at http://localhost:3000
+npm run build   # production build
+```
+
+### Data architecture
+
+```
+DNAnexus / local GFA results
+   │  (offline, never sent to browser)
+   ▼
+pipeline/export/build_web_dataset.py
+   │  bounded compact JSON (no sequences, no GFA/FASTA/VCF)
+   ▼
+results/web/{manifest.json, overview.json, graphs/...}
+   │  scripts/sync_web_results.py (guards genomic + size)
+   ▼
+web/public/data/
+   │
+   ▼
+Next.js + Cytoscape.js explorer
+```
+
+- `manifest.json` — sample/haplotype discovery, pipeline status, graph metrics.
+- `overview.json` — chunk coordinate windows.
+- `graphs/<graph>/<sample>_<hap>.json` — bounded per-haplotype subgraph
+  (selected path + one-hop branches). Node ids, lengths, degree, and
+  path/reference membership only — **no nucleotide sequences**.
+
+### Sample selection
+
+Select a sample (GRCh38, HG00673, HG00733) and haplotype
+(reference / paternal / maternal). Each selection lazy-loads only its compact
+JSON. The explorer supports graph selection (Baseline vs Merged), zoom/pan,
+fit/reset, node search, node/edge inspector, and reference/branch highlighting.
+
+### Deploy
+
+```bash
+cd web
+npx vercel --prod
+```
+
+Only static compact JSON is served; no DNAnexus credentials or raw genomics
+files ever reach the browser.
 
 ## Configuration
 
@@ -232,7 +294,9 @@ Start with exact-match welding before attempting alignment-based welding for nea
 ☐ M1: PGGB version verified
 ☐ K1: Dipcall wrapper complete
 ☐ K2: Variant comparison working
-☐ A1-A5: DNAnexus + web updates done
+☑ A1-A5: DNAnexus + web updates done
+☑ A6: Web dataset export (build_web_dataset.py)
+☐ A7-A10: benchmark display, chunk viz, compare mode, Vercel deploy
 ☐ D1-D4: Documentation complete
 ☐ S1: Full integration test passes
 ☐ S2: All 55+ tests pass on CI
@@ -259,13 +323,14 @@ pangenome-parallel/
 |-- pipeline/prepare/map_chromosome.py  # minimap2 interval mapping
 |-- pipeline/prepare/prepare_sequences.py  # Multi-FASTA builder
 |-- pipeline/benchmark/           # Stats, path compare, reports
+|-- pipeline/export/build_web_dataset.py  # GFA -> bounded web JSON (A6)
 |-- scripts/run_pggb.py           # Canonical PGGB runner (reads config)
 |-- scripts/fetch_hprc_index.py  # Official HPRC Release 2 index
 |-- scripts/download_hprc.py     # Download with gzip validation
 |-- scripts/prepare_reference.sh  # GRCh38 chr21 from DNAnexus/NCBI
 |-- scripts/setup_demo.py        # Synthetic end-to-end demo
 |-- scripts/check_environment.sh  # Tiered environment checker
-|-- tests/                       # 55 tests, pytest
+|-- tests/                       # 167 tests, pytest
 |-- web/                         # Next.js + React + TypeScript
 |-- docs/                        # Architecture, methods, DNAnexus
 ```
