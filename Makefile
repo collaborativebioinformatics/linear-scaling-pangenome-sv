@@ -1,4 +1,4 @@
-.PHONY: help check demo test web setup fetch-index verify-index download prepare-ref prepare prepare-seq baseline chunks merge benchmark linear dipcall svim-asm variants clean deploy dnanexus-setup dnanexus-pipeline
+.PHONY: help check demo test web setup fetch-index verify-index download prepare-ref prepare prepare-seq baseline chunks merge benchmark linear dipcall svim-asm variants clean deploy dnanexus-setup dnanexus-pipeline freeze-web-results run-real-benchmark run-variant-comparison
 
 help:
 	@echo "Targets:"
@@ -31,6 +31,11 @@ dipcall:;	@bash pipeline/linear/run_dipcall.sh
 svim-asm:;	@bash pipeline/linear/run_svim_asm.sh
 variants:;	@bash pipeline/benchmark/benchmark_variants.sh
 benchmark:;	@python3 pipeline/benchmark/graph_stats.py && python3 pipeline/benchmark/compare_paths.py && python3 pipeline/benchmark/build_report.py
+
+# ---- Static results architecture ----
+freeze-web-results:;	@python3 pipeline/export/validate_baseline_paths.py && python3 pipeline/export/freeze_web_results.py
+run-real-benchmark:;	@echo "PGGB baseline + parallel chunks + stitch (see dnanexus/run_pipeline.sh)" && bash dnanexus/run_pipeline.sh --upload
+run-variant-comparison:;	@bash pipeline/benchmark/benchmark_variants.sh
 
 clean:;	@rm -rf results/* work/* web/public/data/baseline.json web/public/data/merged.json && echo "Cleaned"
 deploy:;	@cd web && npx vercel --prod
