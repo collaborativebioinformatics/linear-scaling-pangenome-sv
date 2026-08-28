@@ -5,9 +5,10 @@
 [![Website](https://img.shields.io/badge/website-live-blue)](https://web-lemon-zeta-40.vercel.app)
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-live-2ea44f)](https://collaborativebioinformatics.github.io/linear-scaling-pangenome-sv/)
 [![DNAnexus](https://img.shields.io/badge/DNAnexus-Group11__2026-orange)]()
-[![Dataset](https://img.shields.io/badge/data-real%20HPRC%20chr21%201%20Mb-8b5cf6)]()
 
 > **Research question:** Can pangenome graphs be built in parallel chunks and stitched back together while preserving haplotype paths, topology, and variant representation compared to a monolithic build?
+
+**🔗 Live:** [collaborativebioinformatics.github.io/linear-scaling-pangenome-sv](https://collaborativebioinformatics.github.io/linear-scaling-pangenome-sv/) | [Vercel mirror](https://web-lemon-zeta-40.vercel.app)
 
 ## 🚀 Quick Start
 
