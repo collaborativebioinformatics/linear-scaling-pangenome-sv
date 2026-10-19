@@ -1,0 +1,12 @@
+# TEST config - used only by testing/haploblocks/. Does not touch config/pipeline.yaml.
+target:
+  chromosome: chr21
+  start: 20000000
+  end: 21000000
+parallel:
+  strategy: fixed
+  chunk_size_bp: 400000
+  blocks_file: testing/haploblocks/chr21_smoke_blocks.bed
+  min_chunk_bp: 300000
+  max_chunk_bp: 600000
+  overlap_bp: 50000
