@@ -5,6 +5,8 @@ NO linear scaling. NO loading entire genomes — uses samtools faidx on
 the exact source_contig for each independently mapped chunk.
 """
 import argparse, csv, hashlib, json, os, subprocess, sys, yaml
+from concurrent.futures import ThreadPoolExecutor
+import shutil
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pipeline.prepare.faidx_utils import faidx_extract, ensure_faidx, _revcomp
@@ -73,6 +75,30 @@ def map_chunk(ap, qry, min_mapq, min_cov):
             "segments_merged": len(grp),
             "method": "minimap2_asm5_chunk_multi_segment"}
 
+def ensure_mmi(ap, outdir="work/preparation/mmi"):
+    """Prebuilt minimap2 (asm5) index for one assembly. Built once, reused by every chunk.
+
+    Rebuilt only if missing or older than the assembly. Written to a .tmp file first
+    so an interrupted build can never leave a truncated index behind."""
+    if shutil.which("minimap2") is None:
+        print("FATAL: minimap2 not found on PATH", file=sys.stderr)
+        sys.exit(1)
+    os.makedirs(outdir, exist_ok=True)
+    mmi = os.path.join(outdir, os.path.basename(str(ap)) + ".asm5.mmi")
+    if os.path.exists(mmi) and os.path.getmtime(mmi) >= os.path.getmtime(ap):
+        return mmi
+    tmp = mmi + ".tmp"
+    print(f"    Building minimap2 index (one-time): {mmi}", flush=True)
+    r = subprocess.run(["minimap2", "-x", "asm5", "-t", "4", "-d", tmp, str(ap)],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        if os.path.exists(tmp): os.remove(tmp)
+        print(f"FATAL: minimap2 index build failed for {ap}\n{r.stderr[-500:]}", file=sys.stderr)
+        sys.exit(1)
+    os.replace(tmp, mmi)
+    return mmi
+
+
 def file_sha256(path):
     if not os.path.exists(path): return ""
     with open(path, "rb") as f: return hashlib.sha256(f.read()).hexdigest()
@@ -108,6 +134,9 @@ def main():
     p.add_argument("--execute", action="store_true")
     p.add_argument("--force", action="store_true",
                    help="Force rebuild even if provenance matches")
+    p.add_argument("--fast-lookup", action="store_true",
+                   help="Use prebuilt minimap2 indexes and look up the haplotypes of "
+                        "each chunk in parallel (same results, much faster)")
     args = p.parse_args()
     chunks = load_manifest()
     if not chunks: print("No manifest."); return
@@ -152,6 +181,14 @@ def main():
         else:
             print(f"FATAL: {n} not found"); sys.exit(1)
 
+    mmi_paths = {}
+    if args.fast_lookup:
+        hap_names = list(hap_paths)
+        print(f"Preparing minimap2 indexes for {len(hap_names)} assemblies...", flush=True)
+        with ThreadPoolExecutor(max_workers=len(hap_names)) as pool:
+            for n, m in zip(hap_names, pool.map(lambda n: ensure_mmi(hap_paths[n]), hap_names)):
+                mmi_paths[n] = m
+
     os.makedirs("work/chunks", exist_ok=True)
     os.makedirs("results/preparation", exist_ok=True)
     cm_rows = []
@@ -180,6 +217,12 @@ def main():
 
         qf = f"work/preparation/{cid}_query.fa"
         extract_chunk_fasta(ref_seq, cs, ce, qf)
+        lookup = {}
+        if args.fast_lookup:
+            lk_names = [r["assembly_name"] for r in mapping]
+            with ThreadPoolExecutor(max_workers=len(lk_names)) as pool:
+                lookup = dict(zip(lk_names, pool.map(
+                    lambda n: map_chunk(mmi_paths[n], qf, min_mapq, min_cov), lk_names)))
         sc = 0
         with open(op,"w") as fout:
             rc = ref_seq[cs:ce]
@@ -190,7 +233,7 @@ def main():
                 sm = r["sample"]; nh = r["haplotype"]
                 hl = r["haplotype_label"]; name = r["assembly_name"]
                 ap = hap_paths[name]
-                res = map_chunk(ap, qf, min_mapq, min_cov)
+                res = lookup[name] if args.fast_lookup else map_chunk(ap, qf, min_mapq, min_cov)
                 if not res:
                     print(f"    FATAL: {sm} ({hl}) chunk {cid} unmapped", file=sys.stderr)
                     sys.exit(1)

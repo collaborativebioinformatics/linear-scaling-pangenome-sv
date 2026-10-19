@@ -79,17 +79,33 @@ def map_interval(ap, qry, min_mapq, min_cov):
     return best if bc >= min_cov else None
 
 
+def map_interval_merged(ap, qry, min_mapq, min_cov):
+    """Like map_interval, but merges the collinear records minimap2 splits a long
+    query into. A 10 Mb interval typically comes back as 10-15 records, none of
+    which covers 90% on its own. Delegates to map_chunk so the interval stage and
+    the chunk stage use identical logic (group by contig+strand, require
+    collinearity, sum coverage, span first start to last end)."""
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from pipeline.parallel.build_all_chunks import map_chunk
+    return map_chunk(ap, qry, min_mapq, min_cov)
+
+
 def main():
     cfg = yaml.safe_load(open("config/pipeline.yaml"))
     tgt = cfg["target"]
     mapping_cfg = cfg.get("mapping", {})
     min_mapq = mapping_cfg.get("min_mapq", 20)
     min_cov = mapping_cfg.get("min_query_coverage", 0.90)
+    merge_segments = bool(mapping_cfg.get("merge_segments", False))
 
     chrom, rs, re = tgt["chromosome"], tgt["start"], tgt["end"]
     print(f"=== Interval Mapping: {chrom}:{rs}-{re} "
           f"({re - rs} bp, 0-based half-open) ===")
     print(f"  Thresholds: MAPQ>={min_mapq}, query_coverage>={min_cov}")
+    if merge_segments:
+        print("  Mode: merge collinear alignment segments (mapping.merge_segments)")
 
     mp = "work/manifests/hprc_selected.csv"
     if not os.path.exists(mp):
@@ -126,7 +142,8 @@ def main():
             failed.append(f"{sm} ({hl}): file not found")
             continue
 
-        res = map_interval(ap, qf, min_mapq, min_cov)
+        res = (map_interval_merged if merge_segments else map_interval)(
+            ap, qf, min_mapq, min_cov)
         if not res:
             failed.append(f"{sm} ({hl}): interval "
                           f"{chrom}:{rs}-{re} unmapped or below threshold")
@@ -135,7 +152,8 @@ def main():
         print(f"    -> {res['source_contig']}:{res['source_start']}-"
               f"{res['source_end']} ({res['strand']}, "
               f"mapq={res['mapping_quality']}, "
-              f"cov={res['query_coverage']:.3f})")
+              f"cov={res['query_coverage']:.3f}, "
+              f"segments={res.get('segments_merged', 1)})")
 
         rows.append({
             "sample": sm, "haplotype": nh,
