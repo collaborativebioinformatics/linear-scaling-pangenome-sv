@@ -62,6 +62,94 @@ def seam_position(left, right):
     return (lo + hi) // 2
 
 
+def anchor_cuts(graph, members, min_anchor_bp=1):
+    """One shared cut for every haplotype at a boundary, or None.
+
+    `members` is [(key, left_path_name, (start, end), (ov_lo, ov_hi))] for the
+    haplotypes that cross this boundary; `graph` is the LEFT chunk graph and
+    (ov_lo, ov_hi) is the haplotype's own overlap window in its coordinates.
+
+    seam_position() cuts every haplotype at the midpoint of its own overlap.
+    Those midpoints are not homologous: each haplotype's overlap edges come from
+    a separate mapping of the reference window, so they differ by tens of bp.
+    When the cut falls inside a node all haplotypes share, each haplotype then
+    slices that node at a different offset and ends up on its own copy of
+    identical sequence, which a caller sees as a long equal-length snarl.
+
+    Instead pick one node that every haplotype walks exactly once, in the same
+    orientation, and cut each haplotype at the end of that node. The cut is then
+    the same homologous base for everyone, so the pieces on both sides of it are
+    identical across haplotypes and stay shared. Among candidates the node whose
+    end is nearest the overlap midpoint wins (longer node, then name, on ties).
+
+    Returns (node_name, {key: cut_coordinate}) or None when no node qualifies,
+    in which case the caller falls back to seam_position().
+    """
+    per = []
+    for key, pn, (start, _end), (ov_lo, ov_hi) in members:
+        seen, pos = {}, start
+        for name, orient in graph.path_steps(pn):
+            pos += graph.segments[name].length
+            seen.setdefault(name, []).append((orient, pos))
+        per.append((key, seen, ov_lo, ov_hi))
+    if not per:
+        return None
+    names = None
+    for _k, seen, _lo, _hi in per:
+        once = {n for n, v in seen.items() if len(v) == 1}
+        names = once if names is None else names & once
+    best = None
+    for n in sorted(names or ()):
+        length = graph.segments[n].length
+        if length < min_anchor_bp:
+            continue
+        if len({seen[n][0][0] for _k, seen, _lo, _hi in per}) != 1:
+            continue
+        score, ok = 0.0, True
+        for _k, seen, lo, hi in per:
+            end = seen[n][0][1]
+            if not lo <= end <= hi:
+                ok = False
+                break
+            score = max(score, abs(end - (lo + hi) / 2))
+        if ok and (best is None or (score, -length, n) < best[0]):
+            best = ((score, -length, n), n)
+    if best is None:
+        return None
+    n = best[1]
+    return n, {k: seen[n][0][1] for k, seen, _lo, _hi in per}
+
+
+def plan_anchor_seams(graphs, groups, min_anchor_bp=1):
+    """({key: {(left_chunk, right_chunk): cut}}, {(left, right): info}).
+
+    One anchor per chunk pair, shared by all haplotypes that cross it. A pair
+    with no usable anchor is absent from the cuts (those haplotypes keep the
+    midpoint cut) and is recorded in `info` with mode "midpoint".
+    """
+    pairs = {}
+    for key, entries in groups.items():
+        for (lc, lp, liv), (rc, _rp, riv) in zip(entries, entries[1:]):
+            lo, hi = max(liv[0], riv[0]), min(liv[1], riv[1])
+            if hi > lo:
+                pairs.setdefault((lc, rc), []).append((key, lp, liv, (lo, hi)))
+    cuts, info = {}, {}
+    for pair, members in sorted(pairs.items()):
+        lc = pair[0]
+        res = anchor_cuts(graphs[lc], members, min_anchor_bp)
+        if res is None:
+            info[pair] = {"mode": "midpoint", "anchor_bp": 0,
+                          "anchor": "", "haplotypes": len(members)}
+            continue
+        node, per_hap = res
+        for key, coord in per_hap.items():
+            cuts.setdefault(key, {})[pair] = coord
+        info[pair] = {"mode": "anchor", "anchor": node,
+                      "anchor_bp": graphs[lc].segments[node].length,
+                      "haplotypes": len(members)}
+    return cuts, info
+
+
 def slice_steps(graph, steps, start, keep_from, keep_to):
     """Trim an oriented step list to the coordinate window [keep_from, keep_to).
 
@@ -120,8 +208,11 @@ def group_paths_by_haplotype(chunk_graphs, chunk_rows=None, chunk_mapping=None):
     return groups
 
 
-def stitch_haplotype(chunk_graphs, entries):
+def stitch_haplotype(chunk_graphs, entries, cuts=None):
     """Cut one haplotype's chunk paths at their seams and concatenate.
+
+    `cuts` is {(left_chunk, right_chunk): coordinate} from plan_anchor_seams();
+    a pair missing from it is cut at seam_position() (the overlap midpoint).
 
     Returns (pieces, gaps) where pieces is
     [(chunk_id, segment_name, orient, off_lo, off_hi)] in haplotype order and
@@ -133,6 +224,8 @@ def stitch_haplotype(chunk_graphs, entries):
     seams, gaps = [], []
     for (lc, _lp, liv), (rc, _rp, riv) in zip(entries, entries[1:]):
         seam = seam_position(liv, riv)
+        if seam is not None and cuts and (lc, rc) in cuts:
+            seam = cuts[(lc, rc)]
         if seam is None:
             gaps.append((lc, rc, liv, riv))
         seams.append(seam)

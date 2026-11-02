@@ -6,7 +6,8 @@ from typing import Dict, List, Optional, Tuple
 from pipeline.merge.gfa import (
     GfaGraph, Header, Segment, Link, Path, Walk, _split_orient
 )
-from pipeline.merge.paths import group_paths_by_haplotype, stitch_haplotype
+from pipeline.merge.paths import (
+    group_paths_by_haplotype, stitch_haplotype, plan_anchor_seams)
 
 T = chr(9)
 N = chr(10)
@@ -93,7 +94,8 @@ def walks_as_paths(g):
 
 
 def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
-                         chunk_rows=None, chunk_mapping=None):
+                         chunk_rows=None, chunk_mapping=None,
+                         seam_mode="anchor", min_anchor_bp=1):
     """Stitch adjacent chunks into one graph across their reference overlap.
 
     Each haplotype is cut once inside every overlap and the two sides are
@@ -101,6 +103,12 @@ def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
     keyed by (chunk, segment, sliced offsets), which keeps a segment shared by
     several haplotypes inside a chunk shared after the cut - without that the
     merge would degenerate into one independent chain per haplotype.
+
+    That only holds if every haplotype is cut at the same homologous base.
+    seam_mode="anchor" (default) cuts all haplotypes at the end of one node they
+    all walk once (see paths.anchor_cuts); a boundary with no such node falls
+    back to the per-haplotype overlap midpoint and is reported as such.
+    seam_mode="midpoint" is the original behaviour, kept for A/B comparison.
 
     Returns (merged_graph, boundary_reports). A boundary where two chunks do not
     actually overlap on some haplotype is reported FAIL and left unjoined: the
@@ -119,9 +127,16 @@ def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
                       for h in chunk_graphs[0][1].headers] or [Header("1.1")]
 
     groups = group_paths_by_haplotype(chunk_graphs, chunk_rows, chunk_mapping)
+    if seam_mode == "anchor":
+        seam_cuts, seam_info = plan_anchor_seams(graphs, groups, min_anchor_bp)
+    elif seam_mode == "midpoint":
+        seam_cuts, seam_info = {}, {}
+    else:
+        raise ValueError(f"seam_mode must be 'anchor' or 'midpoint', got {seam_mode!r}")
     stitched, gaps = {}, {}
     for key, entries in groups.items():
-        pieces, hap_gaps = stitch_haplotype(chunk_graphs, entries)
+        pieces, hap_gaps = stitch_haplotype(
+            chunk_graphs, entries, cuts=seam_cuts.get(key))
         stitched[key] = pieces
         for lc, rc, liv, riv in hap_gaps:
             gaps.setdefault((lc, rc), []).append((key, liv, riv))
@@ -180,7 +195,7 @@ def overlap_aware_stitch(chunk_graphs, ref_name="GRCh38", overlap_bp=100000,
 
     merged.links = [Link(u, uo, v, vo, "0M") for u, uo, v, vo in sorted(edges)]
     return merged, _boundary_reports(chunk_graphs, groups, gaps, chunk_rows,
-                                     overlap_bp)
+                                     overlap_bp, seam_info)
 
 
 def _reference_chunk_order(chunk_graphs, groups, rows):
@@ -224,7 +239,8 @@ def _failed_haplotypes(left, right, order, gaps):
     return list(seen.values())
 
 
-def _boundary_reports(chunk_graphs, groups, gaps, chunk_rows, overlap_bp):
+def _boundary_reports(chunk_graphs, groups, gaps, chunk_rows, overlap_bp,
+                      seam_info=None):
     rows = chunk_rows or {}
     order = _reference_chunk_order(chunk_graphs, groups, rows)
     reports = []
@@ -235,6 +251,7 @@ def _boundary_reports(chunk_graphs, groups, gaps, chunk_rows, overlap_bp):
         failed = _failed_haplotypes(left, right, order, gaps)
         failed_keys = {g[0] for g in failed}
         joined = [k for k in shared if k not in failed_keys]
+        seam = (seam_info or {}).get((left, right), {})
         reports.append({
             "boundary": f"{left}--{right}",
             "left_chunk": left,
@@ -246,18 +263,21 @@ def _boundary_reports(chunk_graphs, groups, gaps, chunk_rows, overlap_bp):
             "haplotypes_unjoined": len(failed),
             "status": "PASS" if joined and not failed else
                       ("FAIL" if failed else "WARN"),
-            "message": _boundary_message(joined, failed),
+            "message": _boundary_message(joined, failed, seam.get("mode")),
+            "seam_mode": seam.get("mode", "midpoint"),
+            "anchor_bp": seam.get("anchor_bp", 0),
         })
     return reports
 
 
-def _boundary_message(joined, failed):
+def _boundary_message(joined, failed, mode=None):
     if failed:
         names = ", ".join("#".join(k) for k, _l, _r in failed[:3])
         return f"no overlap for {len(failed)} haplotype(s): {names}"
     if not joined:
         return "no haplotype present in both chunks"
-    return f"stitched {len(joined)} haplotype(s) at overlap midpoint"
+    where = "a shared anchor node" if mode == "anchor" else "overlap midpoint"
+    return f"stitched {len(joined)} haplotype(s) at {where}"
 
 
 def _actual_overlap(left_row, right_row, fallback):
@@ -324,7 +344,7 @@ def _write_boundary_report(boundaries, path):
     keys = [
         "boundary", "left_chunk", "right_chunk", "reference_overlap_bp",
         "anchor_found", "haplotypes_preserved", "haplotypes_joined",
-        "haplotypes_unjoined", "status", "message"
+        "haplotypes_unjoined", "status", "message", "seam_mode", "anchor_bp"
     ]
     with open(path, "w") as f:
         f.write(T.join(keys) + N)
@@ -352,8 +372,11 @@ def main():
     else:
         obp = config.get("parallel", {}).get("overlap_bp", 100000)
         mapping = _load_chunk_mapping()
+        mcfg = config.get("merge", {})
         merged, br = overlap_aware_stitch(
-            chunks, overlap_bp=obp, chunk_rows=rows, chunk_mapping=mapping)
+            chunks, overlap_bp=obp, chunk_rows=rows, chunk_mapping=mapping,
+            seam_mode=mcfg.get("seam_mode", "anchor"),
+            min_anchor_bp=int(mcfg.get("min_anchor_bp", 1)))
 
     os.makedirs(f"{rd}/merge", exist_ok=True)
     merged.write_gfa(f"{rd}/merge/merged.gfa")
